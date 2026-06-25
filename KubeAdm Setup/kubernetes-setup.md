@@ -199,38 +199,17 @@ chmod 600 ~/join-command.sh
 echo "--- Share ~/join-command.sh with each worker node ---"
 ```
 
----
-
-## Step 8 — Fix CoreDNS for External DNS [MASTER]
-
-> **Do this before installing any workloads.** Pods inherit DNS from CoreDNS.
-> If CoreDNS can't resolve `github.com`, ArgoCD can't reach GitHub — even if the node can.
-
-```bash
-kubectl -n kube-system patch configmap coredns --type merge -p "$(cat <<'EOF'
-{
-  "data": {
-    "Corefile": ".:53 {\n    errors\n    health {\n       lameduck 5s\n    }\n    ready\n    kubernetes cluster.local in-addr.arpa ip6.arpa {\n       pods insecure\n       fallthrough in-addr.arpa ip6.arpa\n       ttl 30\n    }\n    prometheus :9153\n    forward . 8.8.8.8 1.1.1.1\n    cache 30\n    loop\n    reload\n    loadbalance\n}\n"
-  }
-}
-EOF
-)"
-
-kubectl -n kube-system rollout restart deployment coredns
-kubectl -n kube-system rollout status deployment coredns
-```
-
-### Verify DNS Works from a Pod
-
-```bash
-kubectl run dns-test --image=busybox:1.28 --rm -it --restart=Never \
-  -- nslookup github.com
-# Expected: Server: 10.96.0.10 (CoreDNS ClusterIP), then GitHub IPs
-```
+> **Optional — single node cluster:** If running without dedicated workers, untaint the master so pods can schedule on it:
+> ```bash
+> kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+> ```
 
 ---
 
-## Step 9 — Install CNI (choose one) [MASTER]
+## Step 8 — Install CNI [MASTER]
+
+> **Install CNI before joining workers or fixing CoreDNS.** CoreDNS pods will stay in
+> `Pending` until a CNI is present — patching or restarting them before this point has no effect.
 
 ### Option A — Calico
 
@@ -260,7 +239,55 @@ cilium status --wait
 
 ---
 
-## Step 10 — Verify Pod Masquerade (CNI Internet Access) [MASTER]
+## Step 9 — Join Worker Nodes [WORKER]
+
+Copy `~/join-command.sh` from the master to each worker, then run:
+
+```bash
+# On each worker node (run Steps 1–6 first)
+sudo bash ~/join-command.sh --cri-socket=unix:///var/run/crio/crio.sock
+```
+
+Verify from the master:
+
+```bash
+kubectl get nodes -o wide
+# All nodes should show Ready and their IPs in the IP column
+```
+
+---
+
+## Step 10 — Fix CoreDNS for External DNS [MASTER]
+
+> **Do this after CNI is installed and all nodes are Ready.** CoreDNS pods must be Running
+> before the patch and rollout restart will take effect. Pods inherit DNS from CoreDNS —
+> if CoreDNS can't resolve `github.com`, ArgoCD can't reach GitHub even if the node can.
+
+```bash
+kubectl -n kube-system patch configmap coredns --type merge -p "$(cat <<'EOF'
+{
+  "data": {
+    "Corefile": ".:53 {\n    errors\n    health {\n       lameduck 5s\n    }\n    ready\n    kubernetes cluster.local in-addr.arpa ip6.arpa {\n       pods insecure\n       fallthrough in-addr.arpa ip6.arpa\n       ttl 30\n    }\n    prometheus :9153\n    forward . 8.8.8.8 1.1.1.1\n    cache 30\n    loop\n    reload\n    loadbalance\n}\n"
+  }
+}
+EOF
+)"
+
+kubectl -n kube-system rollout restart deployment coredns
+kubectl -n kube-system rollout status deployment coredns
+```
+
+### Verify DNS Works from a Pod
+
+```bash
+kubectl run dns-test --image=busybox:1.28 --rm -it --restart=Never \
+  -- nslookup github.com
+# Expected: Server: 10.96.0.10 (CoreDNS ClusterIP), then GitHub IPs
+```
+
+---
+
+## Step 11 — Verify Pod Masquerade (CNI Internet Access) [MASTER]
 
 > Pods must SNAT through the NAT interface to reach the internet. Calico/Cilium handle
 > this automatically, but verify before installing workloads.
@@ -280,30 +307,11 @@ kubectl run internet-test --image=curlimages/curl --rm -it --restart=Never \
 
 ---
 
-## Step 11 — Join Worker Nodes [WORKER]
-
-Copy `~/join-command.sh` from the master to each worker, then run:
-
-```bash
-# On each worker node (run Step 1–6 first)
-sudo bash ~/join-command.sh --cri-socket=unix:///var/run/crio/crio.sock
-```
-
-Verify from the master:
-
-```bash
-kubectl get nodes -o wide
-# All nodes should show Ready and their bridge IPs in the IP column
-```
-
----
-
 ## Step 12 — Install Metrics Server [MASTER]
 
 ```bash
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
-# Patch args without interactive editing
 kubectl patch deployment metrics-server -n kube-system --type=json -p='[
   {
     "op": "add",
@@ -328,7 +336,7 @@ kubectl top node
 ## Step 13 — Default Storage Class [MASTER]
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.28/deploy/local-path-storage.yaml
 
 kubectl patch storageclass local-path \
   -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'

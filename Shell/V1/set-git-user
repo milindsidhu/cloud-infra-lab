@@ -1,14 +1,14 @@
-✅ Save current Git identity
+# ✅ Save current Git identity
 
 OLD_NAME=$(git config --global user.name)
 OLD_EMAIL=$(git config --global user.email)
 
-🔄 Set temporary identity
+# 🔄 Set temporary identity
 
 git config --global user.name "New Name"
 git config --global user.email "new.email@example.com"
 
-🔁 Restore original identity later
+# 🔁 Restore original identity later
 
 git config --global user.name "$OLD_NAME"
 git config --global user.email "$OLD_EMAIL"
