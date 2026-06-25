@@ -1,6 +1,6 @@
 # cloud-infra-lab
 
-A personal infrastructure lab showcasing real-world DevOps and cloud engineering — multi-cloud provisioning, Kubernetes GitOps, secrets management, CI/CD automation, and observability.
+A personal infrastructure lab built around a self-hosted Kubernetes cluster — covering multi-cloud provisioning, GitOps-driven deployments, zero-trust networking, secrets management, and end-to-end CI/CD automation.
 
 ---
 
