@@ -1,0 +1,190 @@
+# locals {
+#   common_labels = {
+#     environment = "dev"
+#     team        = "platform"
+#     owner       = "milind"
+#   }
+
+#   compute_engines_names = [
+#     "vm-01",
+#     "vm-02"
+#   ]
+# }
+
+# # VPC
+# resource "google_compute_network" "vpc_network" {
+#   name                    = "compute-engine-vpc"
+#   auto_create_subnetworks = false
+#   description             = "VPC for Cloud Run services"
+# }
+
+# # Subnet
+# resource "google_compute_subnetwork" "subnet" {
+#   name          = "compute-engine-subnet"
+#   ip_cidr_range = "10.0.0.0/24"
+#   region        = "us-central1"
+#   network       = google_compute_network.vpc_network.id
+# }
+
+# # Firewall
+# resource "google_compute_firewall" "firewall" {
+#   name    = "allow-ssh-http-https"
+#   network = google_compute_network.vpc_network.id
+
+#   allow {
+#     protocol = "tcp"
+#     ports    = ["22", "80", "443", "8080"]
+#   }
+
+#   source_ranges = ["0.0.0.0/0"]
+#   target_tags   = ["allow-ssh-http-https"]
+# }
+
+# # Bastion host (public IP)
+# resource "google_compute_instance" "bastion" {
+#   name         = "bastion-host"
+#   machine_type = "e2-micro"
+#   zone         = "us-central1-a"
+
+#   boot_disk {
+#     initialize_params {
+#       image  = "debian-cloud/debian-11"
+#       labels = merge(local.common_labels, { server = "bastion" })
+#     }
+#   }
+
+#   network_interface {
+#     network    = google_compute_network.vpc_network.id
+#     subnetwork = google_compute_subnetwork.subnet.id
+#     access_config {} # Public IP
+#   }
+
+#   metadata = {
+#     ssh-keys = "milindsidhu:${file("/Users/dex/.ssh/id_rsa.pub")}"
+#   }
+
+#   labels = merge(local.common_labels, { server = "bastion" })
+#   tags   = ["allow-ssh-http-https"]
+# }
+
+# # Workload VMs (private only)
+# resource "google_compute_instance" "vm_instance" {
+#   for_each     = toset(local.compute_engines_names)
+#   name         = each.value
+#   machine_type = "e2-micro"
+#   zone         = "us-central1-a"
+
+#   boot_disk {
+#     initialize_params {
+#       image  = "debian-cloud/debian-11"
+#       labels = local.common_labels
+#     }
+#   }
+
+#   network_interface {
+#     network    = google_compute_network.vpc_network.id
+#     subnetwork = google_compute_subnetwork.subnet.id
+#     # no public IP
+#   }
+
+#   metadata = {
+#     ssh-keys = "milindsidhu:${file("/Users/dex/.ssh/id_rsa.pub")}"
+#     startup-script = <<-EOT
+#       #!/bin/bash
+#       curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+#       bash add-google-cloud-ops-agent-repo.sh --also-install
+#     EOT
+#   }
+
+#   labels = local.common_labels
+#   tags   = ["allow-ssh-http-https"]
+# }
+
+# # Cloud Router
+# resource "google_compute_router" "router" {
+#   name    = "compute-nat-router"
+#   network = google_compute_network.vpc_network.name
+#   region  = "us-central1"
+# }
+
+# # Cloud NAT
+# resource "google_compute_router_nat" "nat" {
+#   name                               = "compute-nat"
+#   router                             = google_compute_router.router.name
+#   region                             = google_compute_router.router.region
+#   nat_ip_allocate_option             = "AUTO_ONLY"
+#   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+# }
+
+# # Generate Ansible inventory
+# resource "local_file" "ansible_inventory" {
+#   filename = "${path.module}/ansible/ansible_inventory.ini"
+
+#   content = <<-EOT
+#   [bastion]
+#   bastion-host ansible_host=${google_compute_instance.bastion.network_interface[0].access_config[0].nat_ip} ansible_user=milindsidhu ansible_ssh_private_key_file=/Users/dex/.ssh/id_rsa
+
+#   [workload_vms]
+#   %{ for name, vm in google_compute_instance.vm_instance ~}
+#   ${name} ansible_host=${vm.network_interface[0].network_ip} ansible_user=milindsidhu ansible_ssh_private_key_file=/Users/dex/.ssh/id_rsa ansible_ssh_common_args='-o ProxyJump=milindsidhu@${google_compute_instance.bastion.network_interface[0].access_config[0].nat_ip} -o StrictHostKeyChecking=no'
+#   %{ endfor ~}
+#   EOT
+# }
+
+
+# # Generate NGINX upstream config vars for Ansible
+# resource "local_file" "nginx_upstream" {
+#   filename = "${path.module}/ansible/nginx_upstream.yml"
+
+#   content = <<-EOT
+#   app_backends:
+#     %{ for name, vm in google_compute_instance.vm_instance ~}
+#     - ${vm.network_interface[0].network_ip}:8080
+#     %{ endfor ~}
+#   EOT
+# }
+
+# # Run Ansible locally
+# resource "null_resource" "ansible_provision" {
+#   depends_on = [google_compute_instance.vm_instance,
+#                 google_compute_instance.bastion, 
+#                 local_file.ansible_inventory,
+#                 local_file.nginx_upstream,
+#                 google_compute_router_nat.nat
+#                 ]
+
+#   # triggers = {
+#   #   always_run = timestamp() # ensures it runs on every apply
+#   # }
+
+#   provisioner "local-exec" {
+#     environment = {
+#       ANSIBLE_HOST_KEY_CHECKING = "False"
+#     }
+
+#     command = <<-EOT
+#       # sleep 30
+#       # ansible -i "${local_file.ansible_inventory.filename}" workload_vms -m ping -vvv
+#       ansible-playbook -i "${local_file.ansible_inventory.filename}" \
+#         ${path.module}/ansible/playbook.yml \
+#         --limit workload_vms
+
+#       ansible-playbook -i "${local_file.ansible_inventory.filename}" \
+#         ${path.module}/ansible/nginx_reverse_proxy.yml \
+#         --limit bastion-host
+#     EOT
+#   }
+# }
+
+# # Outputs
+# output "bastion_ip" {
+#   value = google_compute_instance.bastion.network_interface[0].access_config[0].nat_ip
+# }
+
+# output "workload_private_ips" {
+#   value = { for name, vm in google_compute_instance.vm_instance : name => vm.network_interface[0].network_ip }
+# }
+
+# output "ansible_inventory_file" {
+#   value = local_file.ansible_inventory.filename
+# }

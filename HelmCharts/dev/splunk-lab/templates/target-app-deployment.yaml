@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "splunk-lab.fullname" . }}-target
+  labels:
+    {{- include "splunk-lab.labels" . | nindent 4 }}
+    app.kubernetes.io/component: target-app
+spec:
+  replicas: {{ .Values.targetApp.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: target-app
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: target-app
+    spec:
+      containers:
+        - name: target-app
+          image: {{ include "splunk-lab.targetImage" . }}
+          imagePullPolicy: {{ .Values.targetApp.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.targetApp.resources | nindent 12 }}

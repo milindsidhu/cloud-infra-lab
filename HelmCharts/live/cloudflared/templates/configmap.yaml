@@ -1,0 +1,43 @@
+{{- if .Values.tunnels.k8sApi.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: cloudflared
+  labels:
+    app: cloudflared
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  config.yaml: |
+    tunnel: {{ .Values.tunnels.k8sApi.tunnelID }}
+    credentials-file: /etc/cloudflared/credentials.json
+    ingress:
+      - hostname: {{ .Values.tunnels.k8sApi.hostname }}
+        service: {{ .Values.tunnels.k8sApi.service }}
+        originRequest:
+          noTLSVerify: {{ .Values.tunnels.k8sApi.noTLSVerify }}
+      - service: http_status:404
+{{- end }}
+---
+{{- if .Values.tunnels.ssh.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ssh-cloudflared-config
+  namespace: cloudflared
+  labels:
+    app: ssh-cloudflared
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  config.yaml: |
+    tunnel: {{ .Values.tunnels.ssh.tunnelID }}
+    credentials-file: /etc/cloudflared/credentials.json
+    ingress:
+      - hostname: {{ .Values.tunnels.ssh.hostname }}
+        service: {{ .Values.tunnels.ssh.service }}
+        {{- if .Values.tunnels.ssh.noTLSVerify }}
+        originRequest:
+          noTLSVerify: {{ .Values.tunnels.ssh.noTLSVerify }}
+        {{- end }}
+      - service: http_status:404
+{{- end }}

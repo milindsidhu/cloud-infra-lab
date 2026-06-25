@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mlflow
+  namespace: argocd
+spec:
+  project: default
+  destination:
+    namespace: mlflow
+    server: https://kubernetes.default.svc
+  source:
+    path: HelmCharts/live/mlflow
+    repoURL: https://github.com/milindsidhu/Projects.git
+    targetRevision: dev/MS
+    helm:
+      releaseName: mlflow
+      valueFiles:
+        - values.yaml
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

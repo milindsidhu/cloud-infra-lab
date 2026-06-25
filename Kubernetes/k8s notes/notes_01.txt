@@ -1,0 +1,29 @@
+Notes:
+
+    Issue with Port Forwarding:
+
+        You were trying to forward port 8080 to access the hello-world app running on a remote Kubernetes pod.
+
+        Encountered the error setsockopt TCP_NODELAY: Invalid argument because port 8080 is already in use on the local machine.
+
+    Solution to Fix Port Conflict:
+
+        Used sudo netstat -tuln | grep 8080 to identify that port 8080 is in use on localhost.
+
+        You can either:
+
+            Free up port 8080 by identifying the process using it with sudo lsof -i :8080 and killing it (if not needed).
+
+            Use a different port, such as 8081, for the reverse SSH tunnel and Kubernetes port-forwarding.
+
+    Using Reverse SSH Tunnel:
+
+        The reverse SSH tunnel command you should use to access the remote pod from your local machine is:
+
+    ssh -R 8080:localhost:8080 user@remote-machine-ip
+
+    This forwards port 8080 on the remote machine to port 8080 on your local machine.
+
+Next Steps:
+
+    If port 8080 remains in use, consider using a different port (e.g., 8081) both in the reverse tunnel command and the Kubernetes port-forward command.

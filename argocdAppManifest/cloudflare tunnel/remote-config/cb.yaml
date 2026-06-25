@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: remote-user
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: remote-user-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin  # Change to 'view' or 'edit' if you want limited access
+subjects:
+  - kind: ServiceAccount
+    name: remote-user
+    namespace: kube-system
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: remote-user-token
+  namespace: kube-system
+  annotations:
+    kubernetes.io/service-account.name: remote-user
+type: kubernetes.io/service-account-token

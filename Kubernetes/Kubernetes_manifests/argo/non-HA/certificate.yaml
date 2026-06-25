@@ -1,0 +1,13 @@
+# create a certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd-cert
+  namespace: argocd
+spec:
+  secretName: multi-cert-self-secret
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "*<domain>"

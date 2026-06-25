@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mittwald-k8s-replicator
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/milindsidhu/Projects.git
+    path: HelmCharts/live/mittwald-k8s-replicator
+    targetRevision: dev/MS
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mittwald-replicator
+
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - ServerSideApply=true
+
+  revisionHistoryLimit: 5

@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudflared
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    namespace: cloudflared
+    server: https://kubernetes.default.svc
+  source:
+    path: HelmCharts/live/cloud-flared-new
+    repoURL: https://github.com/milindsidhu/Projects.git
+    targetRevision: dev/MS
+    helm:
+      releaseName: cloudflared
+      valueFiles:
+        - values.yaml
+  sources: []
+  project: default
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+  ignoreDifferences:
+    - group: ''
+      kind: Secret
+      name: tunnel-credentials
+      jsonPointers:
+        - /data
+    - group: ''
+      kind: Secret
+      name: ssh-tunnel-credentials
+      jsonPointers:
+        - /data
+    - group: ''
+      kind: ConfigMap
+      name: cloudflared-config
+      jsonPointers:
+        - /data
+    - group: ''
+      kind: ConfigMap
+      name: ssh-cloudflared-config
+      jsonPointers:
+        - /data

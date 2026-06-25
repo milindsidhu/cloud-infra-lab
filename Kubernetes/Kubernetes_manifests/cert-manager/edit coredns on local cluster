@@ -1,0 +1,7 @@
+kubectl edit -n kube-system configmap/coredns
+
+. {
+    forward . 1.1.1.1
+}
+
+kubectl rollout restart deployment coredns -n kube-system

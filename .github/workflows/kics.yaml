@@ -1,0 +1,78 @@
+name: KICS Terraform Security Scan
+
+on:
+  # push:
+  #   branches:
+  #     - dev/MS
+  workflow_dispatch:
+
+jobs:
+  discover-roots:
+    runs-on: self-hosted
+    # runs-on: ubuntu-latest
+
+    outputs:
+      roots: ${{ steps.set.outputs.roots }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Discover Terraform roots
+        id: set
+        run: |
+          roots=$(find Terraform -mindepth 1 -maxdepth 1 -type d \
+            | jq -R -s -c 'split("\n")[:-1]')
+
+          echo "Found roots: $roots"
+          echo "roots=$roots" >> $GITHUB_OUTPUT
+
+  kics-scan:
+    runs-on: self-hosted
+    # runs-on: ubuntu-latest
+    needs:
+      - discover-roots
+
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+
+      matrix:
+        root: ${{ fromJson(needs.discover-roots.outputs.roots) }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Verify KICS
+        run: |
+          set -euxo pipefail
+          which kics
+          kics version
+          # ls -la /opt/kics/assets/queries
+          # ls -la /opt/kics/assets/libraries
+
+      - name: Run KICS scan
+        run: |
+          set -euxo pipefail
+
+          mkdir -p "kics-results/${{ matrix.root }}"
+
+          kics scan \
+            -p "${{ matrix.root }}" \
+            -o "kics-results/${{ matrix.root }}" \
+            --report-formats json,sarif \
+            --fail-on high,medium
+
+      - name: Sanitize artifact name
+        id: sanitize
+        run: |
+          SAFE_NAME=$(echo "${{ matrix.root }}" | tr '/' '-')
+          echo "safe_name=$SAFE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kics-${{ steps.sanitize.outputs.safe_name }}
+          path: kics-results/${{ matrix.root }}
+          if-no-files-found: warn

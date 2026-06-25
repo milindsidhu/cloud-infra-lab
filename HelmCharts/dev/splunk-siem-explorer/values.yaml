@@ -1,0 +1,66 @@
+global:
+  imageRegistry: "milindsidhu/"  # e.g. "registry.example.com/"
+
+backend:
+  image:
+    repository: splunk-siem-backend
+    tag: latest
+    pullPolicy: Always
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  service:
+    type: ClusterIP
+    port: 8000
+
+frontend:
+  image:
+    repository: splunk-siem-frontend
+    tag: latest
+    pullPolicy: Always
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  service:
+    type: ClusterIP
+    port: 80
+  ingress:
+    enabled: false
+    className: nginx
+    host: siem-explorer.example.com
+    tls: false
+
+postgresql:
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  database: siem_usecases
+  username: splunk
+  # password is set via secret — see secret.yaml
+  persistence:
+    enabled: true
+    storageClass: ""  # use cluster default
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  service:
+    port: 5432
+
+secret:
+  postgresPassword: splunk123  # override in production with a proper secret manager

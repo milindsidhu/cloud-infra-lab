@@ -1,0 +1,62 @@
+{{- if .Values.splunkForwarder.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "splunk-lab.fullname" . }}-forwarder
+  labels:
+    {{- include "splunk-lab.labels" . | nindent 4 }}
+    app.kubernetes.io/component: splunk-forwarder
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: splunk-forwarder
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: splunk-forwarder
+    spec:
+      serviceAccountName: {{ include "splunk-lab.fullname" . }}-forwarder
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      volumes:
+        - name: varlogcontainers
+          hostPath:
+            path: /var/log/containers
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
+        - name: forwarder-conf
+          configMap:
+            name: {{ include "splunk-lab.fullname" . }}-forwarder-conf
+      containers:
+        - name: splunk-forwarder
+          image: {{ .Values.splunkForwarder.image.repository }}:{{ .Values.splunkForwarder.image.tag }}
+          imagePullPolicy: {{ .Values.splunkForwarder.image.pullPolicy }}
+          env:
+            - name: SPLUNK_START_ARGS
+              value: "--accept-license"
+            - name: SPLUNK_PASSWORD
+              value: "Splunk1234!"
+          volumeMounts:
+            - name: varlogcontainers
+              mountPath: /var/log/containers
+              readOnly: true
+            - name: varlogpods
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: forwarder-conf
+              mountPath: /opt/splunkforwarder/etc/system/local/inputs.conf
+              subPath: inputs.conf
+            - name: forwarder-conf
+              mountPath: /opt/splunkforwarder/etc/system/local/outputs.conf
+              subPath: outputs.conf
+            - name: forwarder-conf
+              mountPath: /opt/splunkforwarder/etc/system/local/props.conf
+              subPath: props.conf
+          resources:
+            {{- toYaml .Values.splunkForwarder.resources | nindent 12 }}
+{{- end }}

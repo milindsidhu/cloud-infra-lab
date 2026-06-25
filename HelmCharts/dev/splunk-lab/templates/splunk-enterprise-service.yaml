@@ -1,0 +1,26 @@
+{{- if .Values.splunkEnterprise.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "splunk-lab.fullname" . }}-splunk
+  labels:
+    {{- include "splunk-lab.labels" . | nindent 4 }}
+    app.kubernetes.io/component: splunk-enterprise
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: splunk-enterprise
+  ports:
+    - name: web
+      port: 8000
+      targetPort: 8000
+    - name: receiver
+      port: 9997
+      targetPort: 9997
+    - name: hec
+      port: 8088
+      targetPort: 8088
+    - name: mgmt
+      port: 8089
+      targetPort: 8089
+{{- end }}

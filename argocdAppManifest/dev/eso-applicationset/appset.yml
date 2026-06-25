@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: eso-stack
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: eso-stack
+  template:
+    metadata:
+      name: eso-stack
+      namespace: argocd
+    spec:
+      project: default
+      sources:
+        - repoURL: https://github.com/milindsidhu/Projects.git
+          path: argocdAppManifest/dev/eso-applicationset/charts/eso-operator
+          targetRevision: dev/MS
+          helm:
+            values: |
+              external-secrets:
+                installCRDs: true
+
+        - repoURL: https://github.com/milindsidhu/Projects.git
+          path: argocdAppManifest/dev/eso-applicationset/charts/eso-config
+          targetRevision: dev/MS
+          helm:
+            parameters:
+              - name: aws.credentials.accessKey
+                value: REPLACE_ME
+              - name: aws.credentials.secretAccessKey
+                value: REPLACE_ME
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: eso
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - Replace=true
+      revisionHistoryLimit: 5

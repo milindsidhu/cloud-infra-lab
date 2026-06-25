@@ -1,0 +1,127 @@
+---
+# Source: lang-app/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: runner-api-dev-lang-app
+  namespace: lang-app
+spec:
+  selector:
+    app: runner-api-dev-lang-app
+  ports:
+    - port: 80
+      targetPort: 8000
+---
+# Source: lang-app/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runner-api-dev-lang-app
+  namespace: lang-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: runner-api-dev-lang-app
+  template:
+    metadata:
+      labels:
+        app: runner-api-dev-lang-app
+    spec:
+      serviceAccountName: sa-lang-app
+      imagePullSecrets:
+        - name: my-registry-secret
+      containers:
+        - name: runner-api
+          image: milindsidhu/fast-api-runner:v1.2.2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+---
+# Source: lang-app/templates/cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cleanup-finished-jobs-lang-app
+  namespace: lang-app
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: sa-lang-app
+          restartPolicy: OnFailure
+          containers:
+            - name: job-cleaner
+              image: bitnami/kubectl:latest
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "[INFO] Deleting completed jobs..."
+                  completed_jobs=$(kubectl get jobs -n lang-app --field-selector=status.successful=1 -o jsonpath='{.items[*].metadata.name}')
+                  if [ -z "$completed_jobs" ]; then
+                    echo "[INFO] No completed jobs found."
+                  else
+                    for job in $completed_jobs; do
+                      echo "Deleting completed job: $job"
+                      kubectl delete job $job -n lang-app --ignore-not-found
+                      configmap_name="user-code-configmap-${job}"
+                      kubectl delete configmap $configmap_name -n lang-app --ignore-not-found
+                      echo "Deleted ConfigMap: $configmap_name"
+                    done
+                  fi
+
+                  echo "[INFO] Deleting failed jobs..."
+                  failed_jobs=$(kubectl get jobs -n lang-app -o json | jq -r '.items[] | select(.status.failed > 0) | .metadata.name')
+                  if [ -z "$failed_jobs" ]; then
+                    echo "[INFO] No failed jobs found."
+                  else
+                    for job in $failed_jobs; do
+                      echo "Deleting failed job: $job"
+                      kubectl delete job $job -n lang-app --ignore-not-found
+                      configmap_name="user-code-configmap-${job}"
+                      kubectl delete configmap $configmap_name -n lang-app --ignore-not-found
+                      echo "Deleted ConfigMap: $configmap_name"
+                    done
+                  fi
+
+                  echo "[INFO] Deleting ConfigMaps older than 1 hour..."
+                  timestamp=$(date -u --date="1 hour ago" +"%Y-%m-%dT%H:%M:%SZ")
+                  configmaps_to_delete=$(kubectl get configmaps -n lang-app -o json | jq -r --arg timestamp "$timestamp" '.items[] | select(.metadata.name | startswith("user-code-configmap-")) | select(.metadata.creationTimestamp < $timestamp) | .metadata.name')
+                  if [ -z "$configmaps_to_delete" ]; then
+                    echo "[INFO] No ConfigMaps older than 1 hour found."
+                  else
+                    for configmap in $configmaps_to_delete; do
+                      echo "Deleting old ConfigMap: $configmap"
+                      kubectl delete configmap $configmap -n lang-app --ignore-not-found
+                    done
+                  fi
+---
+# Source: lang-app/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: runner-api-dev-lang-app
+  namespace: lang-app
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    external-dns.alpha.kubernetes.io/hostname: dev-runner-api<domain>
+    external-dns.alpha.kubernetes.io/target: 787c8a46-0ffa-4ae2-8a98-5c0c57164257.cfargotunnel.com
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: dev-runner-api<domain>
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: runner-api-dev-lang-app
+                port:
+                  number: 80

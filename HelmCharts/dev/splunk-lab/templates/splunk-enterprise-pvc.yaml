@@ -1,0 +1,17 @@
+{{- if .Values.splunkEnterprise.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "splunk-lab.fullname" . }}-splunk-data
+  labels:
+    {{- include "splunk-lab.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.splunkEnterprise.persistence.storageClass }}
+  storageClassName: {{ .Values.splunkEnterprise.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.splunkEnterprise.persistence.size }}
+{{- end }}

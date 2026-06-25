@@ -1,0 +1,452 @@
+---
+# Source: cloudflared/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-tunnel
+  namespace: cloudflared
+  labels:
+    app: argocd-tunnel
+    chart: cloudflared-1.0.0
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-tunnel
+  template:
+    metadata:
+      labels:
+        app: argocd-tunnel
+    spec:
+      serviceAccountName: sa-cloudflared
+      imagePullSecrets:
+        - name: my-registry-secret
+      containers:
+        - name: cloudflared
+          image: "cloudflare/cloudflared:2025.4.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --config
+            - /etc/cloudflared/config/config.yaml
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflared/config
+              readOnly: true
+            - name: creds
+              mountPath: /etc/cloudflared
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 5
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 200m
+      volumes:
+        - name: config
+          configMap:
+            name: argocd-cloudflared-config
+        - name: creds
+          secret:
+            secretName: argocd-tunnel-credentials
+---
+# Source: cloudflared/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-api-tunnel
+  namespace: cloudflared
+  labels:
+    app: k8s-api-tunnel
+    chart: cloudflared-1.0.0
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-api-tunnel
+  template:
+    metadata:
+      labels:
+        app: k8s-api-tunnel
+    spec:
+      serviceAccountName: sa-cloudflared
+      imagePullSecrets:
+        - name: my-registry-secret
+      containers:
+        - name: cloudflared
+          image: "cloudflare/cloudflared:2025.4.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --config
+            - /etc/cloudflared/config/config.yaml
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflared/config
+              readOnly: true
+            - name: creds
+              mountPath: /etc/cloudflared
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 5
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 200m
+      volumes:
+        - name: config
+          configMap:
+            name: cloudflared-config
+        - name: creds
+          secret:
+            secretName: tunnel-credentials
+---
+# Source: cloudflared/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ssh-tunnel
+  namespace: cloudflared
+  labels:
+    app: ssh-tunnel
+    chart: cloudflared-1.0.0
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ssh-tunnel
+  template:
+    metadata:
+      labels:
+        app: ssh-tunnel
+    spec:
+      serviceAccountName: sa-cloudflared
+      imagePullSecrets:
+        - name: my-registry-secret
+      containers:
+        - name: cloudflared
+          image: "cloudflare/cloudflared:2025.4.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --config
+            - /etc/cloudflared/config/config.yaml
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflared/config
+              readOnly: true
+            - name: creds
+              mountPath: /etc/cloudflared
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 5
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 200m
+      volumes:
+        - name: config
+          configMap:
+            name: ssh-cloudflared-config
+        - name: creds
+          secret:
+            secretName: ssh-tunnel-credentials
+---
+# Source: cloudflared/templates/job-tunnel-cleanup.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cloudflared-tunnel-cleanup
+  namespace: cloudflared
+  labels:
+    app: cloudflared-tunnel-cleanup
+    chart: cloudflared-1.0.0
+  annotations:
+    argocd.argoproj.io/hook: PostDelete
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: cloudflared-tunnel-cleanup
+    spec:
+      serviceAccountName: sa-cloudflared
+      imagePullSecrets:
+        - name: my-registry-secret
+      restartPolicy: OnFailure
+      containers:
+        - name: cleanup
+          image: alpine:3.19
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              echo "==> Installing dependencies..."
+              apk add --no-cache curl wget python3 ca-certificates
+
+              echo "==> Installing kubectl..."
+              curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              chmod +x kubectl && mv kubectl /usr/local/bin/kubectl
+
+              echo "==> Installing cloudflared..."
+              wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared
+              chmod +x /usr/local/bin/cloudflared
+
+              echo "==> Writing cert.pem..."
+              mkdir -p /root/.cloudflared
+              echo "$CLOUDFLARE_CERT" > /root/.cloudflared/cert.pem
+
+              cleanup_tunnel() {
+                local TNAME=$1 TSECRET=$2 TCMAP=$3
+
+                echo "==> [$TNAME] Deleting configmap..."
+                kubectl delete configmap "$TCMAP" -n cloudflared --ignore-not-found
+
+                echo "==> [$TNAME] Deleting credentials secret..."
+                kubectl delete secret "$TSECRET" -n cloudflared --ignore-not-found
+
+                echo "==> [$TNAME] Deleting tunnel from Cloudflare..."
+                cloudflared tunnel delete --force "$TNAME" 2>/dev/null || echo "==> [$TNAME] Tunnel not found or already deleted"
+
+                echo "==> [$TNAME] Cleanup done"
+              }
+
+              # cleanup_tunnel "k8s-api-tunnel" "tunnel-credentials" "cloudflared-config"
+
+              #
+              # cleanup_tunnel "ssh-tunnel" "ssh-tunnel-credentials" "ssh-cloudflared-config"
+              #
+
+              #
+              # cleanup_tunnel "argocd-tunnel" "argocd-tunnel-credentials" "argocd-cloudflared-config"
+              #
+              cleanup_tunnel "argocd-tunnel" "argocd-tunnel-credentials" "argocd-cloudflared-config"
+              cleanup_tunnel "k8s-api-tunnel" "tunnel-credentials" "cloudflared-config"
+              cleanup_tunnel "ssh-tunnel" "ssh-tunnel-credentials" "ssh-cloudflared-config"
+
+
+              echo "==> All tunnels cleaned up"
+          env:
+            - name: CLOUDFLARE_CERT
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-secrets
+                  key: cert.pem
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+---
+# Source: cloudflared/templates/job-tunnel-setup.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cloudflared-tunnel-setup
+  namespace: cloudflared
+  labels:
+    app: cloudflared-tunnel-setup
+    chart: cloudflared-1.0.0
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: cloudflared-tunnel-setup
+    spec:
+      serviceAccountName: sa-cloudflared
+      imagePullSecrets:
+        - name: my-registry-secret
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          image: alpine:3.19
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              echo "==> Installing dependencies..."
+              apk add --no-cache curl wget python3 ca-certificates
+
+              echo "==> Installing kubectl..."
+              curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              chmod +x kubectl && mv kubectl /usr/local/bin/kubectl
+
+              echo "==> Installing cloudflared..."
+              wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared
+              chmod +x /usr/local/bin/cloudflared
+
+              echo "==> Writing cert.pem..."
+              mkdir -p /root/.cloudflared
+              echo "$CLOUDFLARE_CERT" > /root/.cloudflared/cert.pem
+
+              get_tunnel_id() {
+                local NAME=$1
+                cloudflared tunnel list --output json 2>/dev/null | python3 -c "import sys,json; tunnels=json.load(sys.stdin) or []; print(next((t['id'] for t in tunnels if t['name']=='${NAME}'),None) or '')"
+              }
+
+              apply_configmap() {
+                local TCMAP=$1 TID=$2 THOST=$3 TSVC=$4 TTLS=$5
+                printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: %s\n  namespace: cloudflared\n  annotations:\n    argocd.argoproj.io/compare-options: IgnoreExtraneous\ndata:\n  config.yaml: |\n    tunnel: %s\n    credentials-file: /etc/cloudflared/credentials.json\n    ingress:\n      - hostname: %s\n        service: %s\n        originRequest:\n          noTLSVerify: %s\n      - service: http_status:404\n' \
+                  "$TCMAP" "$TID" "$THOST" "$TSVC" "$TTLS" | kubectl apply -f -
+              }
+
+              setup_tunnel() {
+                local TNAME=$1 THOST=$2 TSVC=$3 TSECRET=$4 TCMAP=$5 TTLS=$6
+
+                echo "==> [$TNAME] Checking tunnel in Cloudflare..."
+                TID=$(get_tunnel_id "$TNAME")
+
+                if [ -z "$TID" ]; then
+                  echo "==> [$TNAME] Creating new tunnel..."
+                  cloudflared tunnel create "$TNAME"
+                  sleep 2
+                  TID=$(get_tunnel_id "$TNAME")
+                  echo "==> [$TNAME] Created with ID: $TID"
+                else
+                  echo "==> [$TNAME] Tunnel already exists with ID: $TID"
+                  echo "==> [$TNAME] Re-generating credentials file..."
+                  cloudflared tunnel token --cred-file /root/.cloudflared/${TID}.json "$TNAME" || \
+                    cloudflared tunnel credentials download "$TID" --output /root/.cloudflared/${TID}.json || true
+                fi
+
+                echo "==> [$TNAME] Setting DNS route..."
+                cloudflared tunnel route dns --overwrite-dns "$TNAME" "$THOST" || true
+
+                echo "==> [$TNAME] Checking credentials secret..."
+                if kubectl get secret "$TSECRET" -n cloudflared > /dev/null 2>&1; then
+                  echo "==> [$TNAME] Secret exists — checking if valid..."
+                  SECRET_TUNNEL_ID=$(kubectl get secret "$TSECRET" -n cloudflared \
+                    -o jsonpath='{.data.credentials\.json}' | base64 -d | python3 -c "import sys,json; print(json.load(sys.stdin).get('TunnelID',''))" 2>/dev/null || echo "")
+                  if [ "$SECRET_TUNNEL_ID" != "$TID" ]; then
+                    echo "==> [$TNAME] Secret has wrong tunnel ID ($SECRET_TUNNEL_ID vs $TID), recreating..."
+                    kubectl delete secret "$TSECRET" -n cloudflared
+                    kubectl create secret generic "$TSECRET" --from-file=credentials.json=/root/.cloudflared/${TID}.json -n cloudflared
+                  else
+                    echo "==> [$TNAME] Secret is valid, skipping"
+                  fi
+                else
+                  echo "==> [$TNAME] Creating credentials secret..."
+                  kubectl create secret generic "$TSECRET" --from-file=credentials.json=/root/.cloudflared/${TID}.json -n cloudflared
+                fi
+
+                echo "==> [$TNAME] Creating/updating configmap..."
+                apply_configmap "$TCMAP" "$TID" "$THOST" "$TSVC" "$TTLS"
+
+                echo "==> [$TNAME] Done"
+              }
+
+              # setup_tunnel "k8s-api-tunnel" "k8s-api.solidshop.in" "https://kubernetes.default.svc.cluster.local:443" "tunnel-credentials" "cloudflared-config" "true"
+
+              #
+              # setup_tunnel "ssh-tunnel" "sshmaster.solidshop.in" "ssh://192.168.1.18:22" "ssh-tunnel-credentials" "ssh-cloudflared-config" "false"
+              #
+
+              #
+              # setup_tunnel "argocd-tunnel" "argocd.solidshop.in" "https://argocd-server.argocd.svc.cluster.local:443" "argocd-tunnel-credentials" "argocd-cloudflared-config" "true"
+              #
+              setup_tunnel "argocd-tunnel" "argocd.solidshop.in" "https://argocd-server.argocd.svc.cluster.local:443" "argocd-tunnel-credentials" "argocd-cloudflared-config" "true"
+              setup_tunnel "k8s-api-tunnel" "k8s-api.solidshop.in" "https://kubernetes.default.svc.cluster.local:443" "tunnel-credentials" "cloudflared-config" "true"
+              setup_tunnel "ssh-tunnel" "sshmaster.solidshop.in" "ssh://192.168.1.18:22" "ssh-tunnel-credentials" "ssh-cloudflared-config" "false"
+
+
+              echo "==> All tunnels setup complete"
+          env:
+            - name: CLOUDFLARE_CERT
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-secrets
+                  key: cert.pem
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+---
+# Source: cloudflared/templates/configmap.yaml
+#
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: cloudflared-config
+#   namespace: cloudflared
+#   annotations:
+#     argocd.argoproj.io/compare-options: IgnoreExtraneous
+#   labels:
+#     app: cloudflared
+#     chart: cloudflared-1.0.0
+# data:
+#   config.yaml: |
+#     tunnel: PENDING
+#     credentials-file: /etc/cloudflared/credentials.json
+#     ingress:
+#       - hostname: k8s-api.solidshop.in
+#         service: https://kubernetes.default.svc.cluster.local:443
+#         originRequest:
+#           noTLSVerify: true
+#       - service: http_status:404
+#
+# ---
+#
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: ssh-cloudflared-config
+#   namespace: cloudflared
+#   annotations:
+#     argocd.argoproj.io/compare-options: IgnoreExtraneous
+#   labels:
+#     app: ssh-cloudflared
+#     chart: cloudflared-1.0.0
+# data:
+#   config.yaml: |
+#     tunnel: PENDING
+#     credentials-file: /etc/cloudflared/credentials.json
+#     ingress:
+#       - hostname: sshmaster.solidshop.in
+#         service: ssh://192.168.1.18:22
+#       - service: http_status:404
+#

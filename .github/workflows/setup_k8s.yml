@@ -1,0 +1,79 @@
+name: Setup Kubernetes Cluster
+on:
+  # workflow_dispatch:
+  #   # branches:
+  #   #   - 'main'
+  #   inputs:
+  #     github_runner:
+  #       description: "Choose the Github Runner"
+  #       required: true
+  #       default: "ubuntu-latest"
+  #       type: choice
+  #       options:
+  #         - "ubuntu-latest"
+  #         - "self-hosted"
+
+  workflow_call:
+    inputs:
+      github_runner:
+        description: "Choose the Github Runner"
+        required: true
+        default: "ubuntu-latest"
+        type: string
+      commands:
+        description: "Run a set of commands"
+        required: true
+        default: "kubectl get pods"
+        type: string
+      application_name:
+        description: "Name of Application"
+        required: true
+        default: ""
+        type: string
+
+env: 
+  kubeconfig_data: ${{ secrets.KUBECONFIG_DATA }}
+  kubeconfig: ${{ secrets.KUBECONFIG }}
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}       
+
+jobs:
+  k8s:
+    # runs-on: ${{ github.ref == 'refs/heads/main' && inputs.github_runner || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.github_runner || 'ubuntu-latest' }}
+    defaults:
+      run:
+        shell: bash
+        # working-directory: "$GITHUB_WORKSPACE/Kubernetes_manifests"
+    
+    steps:
+      - name: "Checkout the Repository"
+        uses: actions/checkout@v4
+        id: checkout
+
+      - name: Set up Docker
+        uses: docker/setup-docker-action@v4
+
+      - name: Setup Kubectl
+        uses: Azure/setup-kubectl@v4.0.0
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4.2.0 # default is latest (stable)
+        id: installHELM
+
+      - name: Set up Kubeconfig
+        run: |
+              mkdir -p $HOME/.kube
+              echo "${{ env.kubeconfig }}" | base64 --decode > $HOME/.kube/config
+              chmod 600 $HOME/.kube/config
+
+      - name: Test Access
+        # if: ${{ inputs.github_runner == 'self-hosted' }}
+        run: kubectl get nodes
+      
+      # - name: Deploy Application
+      #   run: |
+      #         export DOCKER_USERNAME=${{ env.DOCKER_USERNAME }}
+      #         export DOCKER_PASSWORD=${{ env.DOCKER_PASSWORD }}
+      #         echo "Deploying Application: ${{ inputs.application_name }}"
+      #         ${{ inputs.commands }}

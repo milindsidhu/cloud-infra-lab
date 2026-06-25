@@ -1,0 +1,97 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudflared-tunnel
+  namespace: argocd
+spec:
+  project: default
+  destination:
+    namespace: cloudflared
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://helmcharts.gruntwork.io
+    targetRevision: v0.2.12
+    chart: k8s-service
+    helm:
+      values: |
+        applicationName: cloudflared-argocd-admin
+
+        replicaCount: 1
+
+        containerResources:
+          limits:
+            cpu: "100m"
+            memory: "128Mi"
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+
+        service:
+          enabled: false
+        ingress:
+          enabled: false
+
+        containerImage:
+          repository: cloudflare/cloudflared
+          tag: 2025.6.0
+          pullPolicy: Always
+        containerCommand:
+          - "cloudflared"
+          - "--no-autoupdate"
+          - "tunnel"
+          - "--config"
+          - "/etc/cloudflared/config/config.yaml"
+          - "--loglevel"
+          - "info"
+          - "run"
+
+        configMaps:
+          tunnelcert:
+            as: volume
+            subPath: cert.pem
+            mountPath: /etc/cloudflared/cert.pem
+          credentials:
+            as: volume
+            subPath: credentials.json
+            mountPath: /etc/cloudflared/creds/credentials.json
+          cloudflared:
+            as: volume
+            mountPath: /etc/cloudflared/config
+            items:
+              config.yaml:
+                filePath: config.yaml
+
+        customResources:
+          enabled: true
+          resources:
+            cloudflared_configmap: |
+              apiVersion: v1
+              kind: ConfigMap
+              metadata:
+                name: cloudflared
+                namespace: cloudflared
+              data:
+                config.yaml: |
+                  tunnel: 787c8a46-0ffa-4ae2-8a98-5c0c57164257
+                  credentials-file: /etc/cloudflared/creds/credentials.json
+                  metrics: 0.0.0.0:2000
+                  no-autoupdate: true
+                  ingress:
+                  - hostname: "kube<domain>"
+                    service: https://192.168.1.11:6443
+                    originRequest:
+                      originServerName: dexworks.in
+                      noTLSVerify: true
+                  - hostname: "*<domain>"
+                    service: http://192.168.1.13:80
+                    originRequest:
+                      originServerName: dexworks.in
+                      noTLSVerify: true
+                  - service: http_status:404
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      

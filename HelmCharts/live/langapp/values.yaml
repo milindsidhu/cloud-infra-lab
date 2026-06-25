@@ -1,0 +1,71 @@
+namespaces: 
+  - lang-app
+environment: 
+  - prod
+
+cronjobImage:
+  repository: bitnami/kubectl:latest
+  pullPolicy: IfNotPresent
+
+# CronJob configuration for cleaning up finished jobs
+cronjob:
+  # schedule: "0 * * * *"
+  schedule: "*/10 * * * *"
+  name: cleanup-finished-jobs
+
+runnerApi:
+  # imagePullPolicy: IfNotPresent
+  imagePullPolicy: IfNotPresent
+  name: runner-api
+  image: milindsidhu/fast-api-runner:v1.2.2
+  imagePullSecret: my-registry-secret
+  replicas: 1
+  port: 8000
+  servicePort: 80
+  # check if TLS secret is created before ingress creation
+  checkTlsSecret:
+    enabled: false
+  # enable/disable ingress creation
+  ingress:
+    enabled: true
+    host: runner-api<domain>
+    tlsSecret: cert-self-secret
+    clusterIssuer: letsencrypt-prod
+  # use clusterIssue for TLS
+  certManager:
+    enabled: false
+    clusterIssuer: letsencrypt-prod
+    tlsSecret: multi-cert-self-secret
+  # enable/disable external-dns creation
+  externaldns:
+    enabled: true
+    cloudflare:
+      proxied: true
+      target: 787c8a46-0ffa-4ae2-8a98-5c0c57164257.cfargotunnel.com
+
+# ServiceAccount configuration is done as sa-{{ $ns }} inside manifests
+# don't declare serviceAccount here, it will be created automatically
+
+# serviceAccount:
+#   name: sa-{{ .Values.namespace }}
+
+# for replicating the docker registry secret
+replication:
+  enabled: false
+  secretName: my-docker-secret
+  sourceNamespace: default
+  sourceSecretName: my-registry-secret
+
+
+certManager:
+  # enable/disable cert-manager's clusterIssuer creation.... NOT NECESSARY unless you want a separate authentication.
+  enabled: false
+  clusterIssuerName: letsencrypt-prod
+  email: x@gmail.com
+  privateKeySecretName: letsencrypt-dns-key-prod
+  cloudflare:
+    apiTokenSecretName: cloudflare-api-token-secret
+    apiTokenKey: api-token
+  certificateSecretName: multi-cert-self-secret
+  dnsNames:
+    - "*<domain>"

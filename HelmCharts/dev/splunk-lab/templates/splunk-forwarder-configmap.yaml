@@ -1,0 +1,44 @@
+{{- if .Values.splunkForwarder.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "splunk-lab.fullname" . }}-forwarder-conf
+  labels:
+    {{- include "splunk-lab.labels" . | nindent 4 }}
+data:
+  inputs.conf: |
+    # Monitor all container logs on this node
+    [monitor:///var/log/containers/*.log]
+    disabled = false
+    index = {{ .Values.splunkForwarder.index }}
+    sourcetype = kube:container:log
+
+    # Monitor pod logs directly (CRI format)
+    [monitor:///var/log/pods/.../*.log]
+    disabled = false
+    index = {{ .Values.splunkForwarder.index }}
+    sourcetype = kube:container:log
+
+  outputs.conf: |
+    [tcpout]
+    defaultGroup = splunk_indexer
+
+    [tcpout:splunk_indexer]
+    {{- if .Values.splunkEnterprise.enabled }}
+    server = {{ include "splunk-lab.fullname" . }}-splunk:9997
+    {{- else if .Values.splunkForwarder.splunkHost }}
+    server = {{ .Values.splunkForwarder.splunkHost }}:{{ .Values.splunkForwarder.splunkPort }}
+    {{- else }}
+    server = SPLUNK_HOST_NOT_CONFIGURED:{{ .Values.splunkForwarder.splunkPort }}
+    {{- end }}
+
+  props.conf: |
+    # Parse JSON logs from containers
+    [kube:container:log]
+    SHOULD_LINEMERGE = false
+    LINE_BREAKER = ([\r\n]+)
+    KV_MODE = json
+    TIME_PREFIX = "timestamp":"
+    TIME_FORMAT = %Y-%m-%dT%H:%M:%S
+    MAX_TIMESTAMP_LOOKAHEAD = 30
+{{- end }}

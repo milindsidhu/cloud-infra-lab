@@ -1,0 +1,27 @@
+kubectl create namespace metallb
+
+helm repo add metallb https://metallb.github.io/metallb
+
+helm install metallb metallb/metallb --namespace metallb
+
+
+---
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: my-pool
+  namespace: metallb
+spec:
+  addresses:
+  - 192.168.1.0-192.168.1.10
+  autoAssign: false
+
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: my-pool
+  namespace: metallb
+spec:
+  ipAddressPools:
+  - second-pool

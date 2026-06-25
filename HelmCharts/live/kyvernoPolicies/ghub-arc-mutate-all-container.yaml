@@ -1,0 +1,34 @@
+# apiVersion: kyverno.io/v1
+# kind: ClusterPolicy
+# metadata:
+#   name: mutate-gha-runner-initcontainer-resources
+#   annotations:
+#     policies.kyverno.io/title: Inject InitContainer Resources Safely
+#     policies.kyverno.io/description: Safely ensures initContainers (if present) have CPU and memory limits.
+# spec:
+#   background: false
+
+#   rules:
+#     - name: add-initcontainer-resources
+#       match:
+#         any:
+#           - resources:
+#               kinds:
+#                 - Pod
+#               namespaces:
+#                 - actions-runner-system
+
+#       mutate:
+#         foreach:
+#           - list: "request.object.spec.initContainers || []"
+#             patchStrategicMerge:
+#               spec:
+#                 initContainers:
+#                   - (name): "{{ element.name }}"
+#                     resources:
+#                       requests:
+#                         cpu: "50m"
+#                         memory: "64Mi"
+#                       limits:
+#                         cpu: "200m"
+#                         memory: "256Mi"

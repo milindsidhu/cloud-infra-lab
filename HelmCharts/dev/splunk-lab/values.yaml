@@ -1,0 +1,85 @@
+global:
+  imageRegistry: "milindsidhu"
+
+targetApp:
+  image:
+    repository: splunk-lab-target
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 1000m      # intentionally high — CPU spike trigger uses it
+      memory: 512Mi   # intentionally high — memory spike trigger uses it
+  service:
+    port: 8000
+
+loadGenerator:
+  image:
+    repository: splunk-lab-generator
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  service:
+    port: 8001
+
+controlPanel:
+  image:
+    repository: splunk-lab-control
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  service:
+    type: ClusterIP
+    port: 80
+
+splunkEnterprise:
+  enabled: true
+  image:
+    tag: "9.3.2"
+    pullPolicy: IfNotPresent
+  adminPassword: "Splunk1234!"   # min 8 chars, must have upper+lower+number
+  persistence:
+    storageClass: ""             # leave empty to use cluster default
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+splunkForwarder:
+  enabled: false   # replaced by fluentBit below
+
+fluentBit:
+  enabled: true
+  # Paste your Splunk HEC token here after creating it in:
+  # Settings → Data Inputs → HTTP Event Collector → New Token
+  hecToken: "YOUR-HEC-TOKEN-HERE"
+  index: "main"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

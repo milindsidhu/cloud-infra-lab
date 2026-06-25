@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno-policies
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"   # deploy after kyverno itself
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/milindsidhu/Projects.git
+    targetRevision: dev/MS
+    path: HelmCharts/live/kyvernoPolicies 
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  ignoreDifferences:
+    - group: kyverno.io
+      kind: ClusterPolicy
+      jsonPointers:
+        - /status
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    syncOptions:
+      - RespectIgnoreDifferences=true
+      - ServerSideApply=true

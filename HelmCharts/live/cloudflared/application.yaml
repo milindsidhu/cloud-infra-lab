@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudflared
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yourorg/gitops.git
+    targetRevision: main
+    path: cloudflared-helm
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cloudflared
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: tunnel-credentials
+      jsonPointers:
+        - /data
+    - group: ""
+      kind: Secret
+      name: ssh-tunnel-credentials
+      jsonPointers:
+        - /data

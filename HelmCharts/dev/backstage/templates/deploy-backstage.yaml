@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backstage
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.backstage.replicas }}
+  selector:
+    matchLabels:
+      app: backstage
+  template:
+    metadata:
+      labels:
+        app: backstage
+    spec:
+      initContainers:
+        - name: wait-for-db
+          image: busybox
+          command:
+            [
+              "sh",
+              "-c",
+              "until nc -z backstage-postgres {{ .Values.postgres.port }}; do echo waiting for db; sleep 2; done;",
+            ]
+      containers:
+        - name: backstage
+          image: {{ .Values.backstage.image }}
+          ports:
+            - containerPort: {{ .Values.backstage.port }}
+          env:
+            - name: AUTH_SECRET
+              value: {{ .Values.backstage.authSecret }}
+            - name: NODE_ENV
+              value: {{ .Values.backstage.env.NODE_ENV }}
+          envFrom:
+            - secretRef:
+                name: backstage-db-secret
+            - secretRef:
+                name: backstage-ghub-secret

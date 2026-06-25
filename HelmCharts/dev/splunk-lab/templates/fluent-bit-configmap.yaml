@@ -1,0 +1,63 @@
+{{- if .Values.fluentBit.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "splunk-lab.fullname" . }}-fluent-bit
+  labels:
+    {{- include "splunk-lab.labels" . | nindent 4 }}
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         2
+        Daemon        Off
+        Log_Level     info
+        Parsers_File  parsers.conf
+
+    [INPUT]
+        Name              tail
+        Path              /var/log/containers/*.log
+        multiline.parser  cri
+        Tag               kube.<namespace_name>.<pod_name>.<container_name>
+        Tag_Regex         (?<pod_name>[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)_(?<namespace_name>[^_]+)_(?<container_name>.+)-
+        Refresh_Interval  5
+        Mem_Buf_Limit     50MB
+        Skip_Long_Lines   On
+        DB                /var/log/flb_kube.db
+
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Merge_Log           On
+        Keep_Log            Off
+        Annotations         Off
+        Labels              On
+
+    [OUTPUT]
+        Name              splunk
+        Match             *
+        Host              {{ include "splunk-lab.fullname" . }}-splunk
+        Port              8088
+        Splunk_Token      {{ .Values.fluentBit.hecToken }}
+        TLS               Off
+        TLS.Verify        Off
+        Splunk_Send_Raw   Off
+        Event_Index       {{ .Values.fluentBit.index }}
+        Event_Sourcetype  kube:container:json
+
+  parsers.conf: |
+    [PARSER]
+        Name        json
+        Format      json
+        Time_Key    timestamp
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+
+    [PARSER]
+        Name        cri
+        Format      regex
+        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+{{- end }}

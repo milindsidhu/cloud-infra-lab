@@ -1,0 +1,131 @@
+{{- range $ns := .Values.namespaces }}
+{{- range $env := $.Values.environment }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ if ne $env "prod" }}{{ printf "%s-%s-%s" $.Values.cronjob.name $env $ns }}{{ else }}{{ printf "%s-%s" $.Values.cronjob.name $ns }}{{ end }}
+  namespace: {{ $ns }}
+spec:
+  schedule: {{ $.Values.cronjob.schedule | quote }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: sa-{{ $ns }}
+          restartPolicy: OnFailure
+          containers:
+            - name: job-cleaner
+              image: {{ $.Values.cronjobImage.repository }}
+              imagePullPolicy: {{ $.Values.cronjobImage.pullPolicy | default "IfNotPresent" }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  NAMESPACE="{{ $ns }}"
+                  ENV="{{ $env }}"
+                  
+                  if [ "$ENV" = "prod" ]; then
+                    JOB_NAME="user-code-job-"
+                    CONFIGMAP_NAME="user-code-configmap-"
+                  else
+                    JOB_NAME="$ENV-user-code-job-"
+                    CONFIGMAP_NAME="$ENV-user-code-configmap-"
+                  fi
+
+                  echo "[INFO] Deleting completed jobs..."
+                  completed_jobs=$(kubectl get jobs -n {{ $ns }} --field-selector=status.successful=1 -o json | jq -r --arg job_prefix "$JOB_NAME" '.items[] | select(.metadata.name | startswith($job_prefix)) | .metadata.name')
+                  if [ -z "$completed_jobs" ]; then
+                    echo "[INFO] No completed jobs found."
+                  else
+                    for job in $completed_jobs; do
+                      echo "[INFO] Deleting completed job: $job"
+                      kubectl delete job $job -n {{ $ns }} --ignore-not-found
+                      configmap_name="${CONFIGMAP_NAME}${job#$JOB_NAME}"
+                      echo "[INFO] Deleting ConfigMap: $configmap_name"
+                      kubectl delete configmap $configmap_name -n {{ $ns }} --ignore-not-found
+                    done
+                  fi
+
+                  ############################
+
+                  echo "[INFO] Deleting failed jobs..."
+                  failed_jobs=$(kubectl get jobs -n {{ $ns }} -o json | jq -r --arg job_prefix "$JOB_NAME" '.items[] | select(.status.failed > 0) | select(.metadata.name | startswith($job_prefix)) | .metadata.name')
+                  if [ -z "$failed_jobs" ]; then
+                    echo "[INFO] No failed jobs found."
+                  else
+                    for job in $failed_jobs; do
+                      echo "[INFO] Deleting failed job: $job"
+                      kubectl delete job $job -n {{ $ns }} --ignore-not-found
+                      configmap_name="${CONFIGMAP_NAME}${job#$JOB_NAME}"
+                      echo "[INFO] Deleting ConfigMap: $configmap_name"
+                      kubectl delete configmap $configmap_name -n {{ $ns }} --ignore-not-found
+                    done
+                  fi
+
+                  ############################
+
+                  echo "[INFO] Deleting ConfigMaps older than 10 minutes..."
+                  # timestamp=$(date -u --date="1 hour ago" +"%Y-%m-%dT%H:%M:%SZ")
+                  timestamp=$(date -u --date="10 minutes ago" +"%Y-%m-%dT%H:%M:%SZ")
+                  configmaps_to_delete=$(kubectl get configmaps -n {{ $ns }} -o json | jq -r --arg timestamp "$timestamp" --arg configmap_prefix "$CONFIGMAP_NAME" '.items[] | select(.metadata.name | startswith($configmap_prefix)) | select(.metadata.creationTimestamp < $timestamp) | .metadata.name')
+                  if [ -z "$configmaps_to_delete" ]; then
+                    echo "[INFO] No ConfigMaps older than 10 minutes found."
+                  else
+                    for configmap in $configmaps_to_delete; do
+                      echo "[INFO] Deleting old ConfigMap: $configmap"
+                      kubectl delete configmap $configmap -n {{ $ns }} --ignore-not-found
+                    done
+                  fi
+
+                  ############################
+
+                  if [ "$ENV" = "prod" ]; then
+                    CRONJOB_NAME="{{ $.Values.cronjob.name }}-{{ $ns }}"
+                  else
+                    CRONJOB_NAME="{{ $.Values.cronjob.name }}-$ENV-{{ $ns }}"
+                  fi
+
+                  echo "[INFO] Deleting CronJob Pods with prefix: $CRONJOB_NAME"
+                  cronjob_pods=$(kubectl get pods -n "$NAMESPACE" -o json | jq -r --arg cronjob_name "$CRONJOB_NAME" --arg my_pod "$MY_POD_NAME" '.items[] | select(.metadata.name | startswith($cronjob_name)) | select(.metadata.name != $my_pod) | .metadata.name')
+                  echo "[INFO] Skipping self pod: $MY_POD_NAME"
+
+                  if [ -z "$cronjob_pods" ]; then
+                    echo "[INFO] No CronJob pods found."
+                  else
+                    for pod in $cronjob_pods; do
+                      echo "[INFO] Deleting CronJob pod: $pod"
+                      kubectl delete pod "$pod" -n "$NAMESPACE" --ignore-not-found
+                    done
+                  fi
+
+                  ############################
+
+                  echo "[INFO] Deleting completed Cleanup-Cronjobs..."
+                  completed_jobs=$(kubectl get jobs -n "$NAMESPACE" --field-selector=status.successful=1 -o json | jq -r --arg job_prefix "$JOB_PREFIX_TO_CLEAN" --arg my_job "$MY_JOB_NAME" '.items[] | select(.metadata.name | startswith($job_prefix)) | select(.metadata.name != $my_job) | .metadata.name')
+
+                  if [ -z "$completed_jobs" ]; then
+                    echo "[INFO] No completed Cleanup-Cronjob found."
+                  else
+                    for job in $completed_jobs; do
+                      echo "[INFO] Deleting completed Cleanup-Cronjob: $job"
+                      kubectl delete job "$job" -n "$NAMESPACE" --ignore-not-found
+                      # configmap_name="${CONFIGMAP_NAME}${job#$JOB_PREFIX_TO_CLEAN}"
+                      # echo "[INFO] Deleting ConfigMap: $configmap_name"
+                      # kubectl delete configmap "$configmap_name" -n "$NAMESPACE" --ignore-not-found
+                    done
+                  fi
+              env:
+              - name: MY_POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+              - name: MY_JOB_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.labels['job-name']
+              - name: JOB_PREFIX_TO_CLEAN
+                value: {{ if ne $env "prod" }}{{ printf "%s-%s-%s" $.Values.cronjob.name $env $ns }}{{ else }}{{ printf "%s-%s" $.Values.cronjob.name $ns }}{{ end }}
+---
+{{- end }}
+{{- end }}

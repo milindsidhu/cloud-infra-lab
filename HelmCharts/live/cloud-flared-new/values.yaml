@@ -1,0 +1,93 @@
+# Managed by namespace-controller
+# namespace, SA, imagePullSecret and cluster-secrets already exist via ESO
+
+serviceAccount:
+  name: sa-cloudflared
+
+imagePullSecret: my-registry-secret
+
+# PreSync Job — set to false after first successful run
+tunnelSetup:
+  enabled: true
+
+tunnels:
+  k8sApi:
+    enabled: true
+    tunnelName: k8s-api-tunnel
+    hostname: k8s-api.solidshop.in
+    service: https://kubernetes.default.svc.cluster.local:443
+    noTLSVerify: true
+    secretName: tunnel-credentials
+    configMapName: cloudflared-config
+
+  ssh:
+    enabled: true
+    tunnelName: ssh-tunnel
+    hostname: sshmaster.solidshop.in
+    service: ssh://192.168.1.18:22
+    noTLSVerify: false
+    secretName: ssh-tunnel-credentials
+    configMapName: ssh-cloudflared-config
+
+  argocd:
+    enabled: true
+    tunnelName: argocd-tunnel
+    hostname: argocd.solidshop.in
+    service: http://argocd-server.argocd.svc.cluster.local:80
+    noTLSVerify: false 
+    secretName: argocd-tunnel-credentials
+    configMapName: argocd-cloudflared-config
+
+  grafana:
+    enabled: true
+    tunnelName: grafana-tunnel
+    hostname: grafana.solidshop.in
+    service: http://monitoring-grafana.monitoring.svc.cluster.local:80
+    noTLSVerify: false
+    secretName: grafana-tunnel-credentials
+    configMapName: grafana-cloudflared-config
+
+  mlflow:
+    enabled: false
+    tunnelName: mlflow-tunnel
+    hostname: mlflow.solidshop.in
+    service: http://mlflow.mlflow.svc.cluster.local:5000
+    noTLSVerify: false
+    secretName: mlflow-tunnel-credentials
+    configMapName: mlflow-cloudflared-config
+
+  minio:
+    enabled: false
+    tunnelName: minio-tunnel
+    hostname: minio.solidshop.in
+    service: http://mlflow-minio-console.mlflow.svc.cluster.local:9001
+    noTLSVerify: false
+    secretName: minio-tunnel-credentials
+    configMapName: minio-cloudflared-config
+
+  minioApi:
+    enabled: false
+    tunnelName: minio-api-tunnel
+    hostname: s3.solidshop.in
+    service: http://mlflow-minio.mlflow.svc.cluster.local:9000
+    noTLSVerify: false
+    secretName: minio-api-tunnel-credentials
+    configMapName: minio-api-cloudflared-config
+
+image:
+  repository: cloudflare/cloudflared
+  tag: "2025.4.0"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "128Mi"
+    cpu: "200m"
+
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 5

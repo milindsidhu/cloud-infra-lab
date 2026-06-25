@@ -1,0 +1,31 @@
+name: Test K8s Runner
+
+on:
+  # push:
+  #   branches:
+  #     - dev/MS
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Kubectl
+        uses: Azure/setup-kubectl@v4.0.0
+
+      - name: Run Python Test
+        run: |
+          python3 -c "print('Hello from my Kubernetes GitHub Actions Runner!')"
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.K8S_CONFIG_2026 }}" > ~/.kube/config
+
+      - name: Test kubectl
+        run: |
+          kubectl get nodes -o wide
+

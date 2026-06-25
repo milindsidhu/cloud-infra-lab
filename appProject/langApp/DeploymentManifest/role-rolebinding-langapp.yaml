@@ -1,0 +1,48 @@
+
+# This file defines the Role and RoleBinding for the lang-app namespace.
+# It grants permissions to manage jobs, pods, and configmaps within the namespace.
+
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: job-pod-role
+  namespace: lang-app
+rules:
+  # Permissions for Jobs
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Permissions for Pods
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  
+  # Permissions for ConfigMaps
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "create", "delete"]
+  
+  # Permissions for creating and deleting jobs' ConfigMaps (associated with completed/failed jobs)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["delete"]
+
+---
+
+# This file defines the RoleBinding for the lang-app namespace.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: job-pod-rolebinding
+  namespace: lang-app
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: lang-app
+roleRef:
+  kind: Role
+  name: job-pod-role
+  apiGroup: rbac.authorization.k8s.io

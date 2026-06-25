@@ -1,0 +1,61 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-for-argocd
+  namespace: argocd
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    external-dns.alpha.kubernetes.io/hostname: argocd<domain>
+    external-dns.alpha.kubernetes.io/target: edf03371-7be3-4673-aeae-4baf7c76fd57.cfargotunnel.com
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: argocd<domain>
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: argocd-server
+            port:
+              name: http
+
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: ingress-for-argocd
+#   namespace: argocd
+#   annotations:
+#     # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+#     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+#     nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+#     nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+#     # nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+#     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+#     external-dns.alpha.kubernetes.io/hostname: argocd<domain>
+#     external-dns.alpha.kubernetes.io/target: edf03371-7be3-4673-aeae-4baf7c76fd57.cfargotunnel.com
+# spec:
+#   ingressClassName: nginx
+#   # tls:
+#   # - hosts:
+#   #   - argocd<domain>
+#   #   secretName: multi-cert-self-secret # Use the actual issued secret
+#   rules:
+#   - host: argocd<domain>
+#     http:
+#       paths:
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: argocd-server
+#             port:
+#               name: https
+#             # name: argocd-server
+#             # port:
+#             #   name: http

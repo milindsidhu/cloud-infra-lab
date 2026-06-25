@@ -1,0 +1,12 @@
+apiVersion: v2
+name: metallb
+description: A Helm chart for metallb
+type: application
+version: 0.1.0
+dependencies:
+  - name: metallb
+    version: 0.15.2
+    repository: https://metallb.github.io/metallb
+    condition: metallb.enabled
+    tags:
+      - metallb

@@ -1,0 +1,10 @@
+apiVersion: v2
+name: mittwald-k8s-replicator
+description: A Helm chart for mittwald-k8s-replicator
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: kubernetes-replicator
+    repository: https://helm.mittwald.de
+    version: "2.11.1"

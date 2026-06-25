@@ -1,0 +1,31 @@
+{
+  "name": "sample-node-app",
+  "version": "1.5.0",
+  "description": "a sample nodejs application",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": [
+    "node",
+    "kuberentes",
+    "docker",
+    "express"
+  ],
+  "author": "milindsidhu@gmail.com",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.2",
+    "http": "^0.0.1-security",
+    "nodemon": "^2.0.15",
+    "path": "^0.12.7"
+  },
+  "overrides": {
+    "semver": "^7.5.2"
+  }
+}

@@ -1,0 +1,208 @@
+{{- if .Values.tunnelSetup.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cloudflared-tunnel-setup
+  namespace: cloudflared
+  labels:
+    app: cloudflared-tunnel-setup
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: cloudflared-tunnel-setup
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
+      restartPolicy: OnFailure
+      initContainers:
+        - name: tools
+          image: alpine:3.19
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] [INIT] Installing dependencies..."
+              apk add --no-cache curl wget python3 ca-certificates
+
+              echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] [INIT] Downloading kubectl..."
+              curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              chmod +x kubectl && mv kubectl /tools/kubectl
+
+              echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] [INIT] Downloading cloudflared {{ .Values.image.tag }}..."
+              wget -q "https://github.com/cloudflare/cloudflared/releases/download/{{ .Values.image.tag }}/cloudflared-linux-amd64" \
+                -O /tools/cloudflared
+              chmod +x /tools/cloudflared
+
+              echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] [INIT] Tools ready"
+          volumeMounts:
+            - name: tools
+              mountPath: /tools
+      containers:
+        - name: setup
+          image: alpine:3.19
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              export PATH="/tools:$PATH"
+
+              apk add --no-cache python3 ca-certificates > /dev/null 2>&1
+
+              # ── Logging ──────────────────────────────────────────────
+              log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] [$1] $2"; }
+
+              # ── CF API retry wrapper ─────────────────────────────────
+              cf_retry() {
+                local RETRIES=5 COUNT=0
+                until "$@" 2>&1; do
+                  COUNT=$((COUNT+1))
+                  [ $COUNT -ge $RETRIES ] && log "ERROR" "CF API call failed after $RETRIES retries" && return 1
+                  log "WARN" "CF API call failed, retry $COUNT/$RETRIES in 10s..."
+                  sleep 10
+                done
+              }
+
+              # ── Pre-flight check ─────────────────────────────────────
+              log "INFO" "Checking Cloudflare API connectivity..."
+              RETRIES=5
+              COUNT=0
+              until wget -q --spider https://api.cloudflare.com > /dev/null 2>&1; do
+                COUNT=$((COUNT+1))
+                [ $COUNT -ge $RETRIES ] && log "ERROR" "Cloudflare API unreachable after $RETRIES attempts" && exit 1
+                log "WARN" "Cloudflare API unreachable, retry $COUNT/$RETRIES in 10s..."
+                sleep 10
+              done
+              log "INFO" "Cloudflare API reachable"
+
+              # ── Write cert.pem ───────────────────────────────────────
+              log "INFO" "Writing cert.pem..."
+              mkdir -p /root/.cloudflared
+              echo "$CLOUDFLARE_CERT" > /root/.cloudflared/cert.pem
+
+              # ── Helper: get tunnel ID ────────────────────────────────
+              get_tunnel_id() {
+                local NAME=$1
+                cloudflared tunnel list --output json 2>/dev/null | python3 -c "import sys,json; data=sys.stdin.read(); tunnels=json.loads(data) if data.strip() else []; print(next((t['id'] for t in (tunnels or []) if t['name']==\"${NAME}\"),\"\"))" 2>/dev/null || echo ""
+              }
+
+              # ── Helper: apply configmap ──────────────────────────────
+              apply_configmap() {
+                local TCMAP=$1 TID=$2 THOST=$3 TSVC=$4 TTLS=$5
+                if echo "$TSVC" | grep -q "^ssh://"; then
+                  printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: %s\n  namespace: cloudflared\n  annotations:\n    argocd.argoproj.io/compare-options: IgnoreExtraneous\ndata:\n  config.yaml: |\n    tunnel: %s\n    credentials-file: /etc/cloudflared/credentials.json\n    ingress:\n      - hostname: %s\n        service: %s\n      - service: http_status:404\n' "$TCMAP" "$TID" "$THOST" "$TSVC" | kubectl apply -f -
+                else
+                  printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: %s\n  namespace: cloudflared\n  annotations:\n    argocd.argoproj.io/compare-options: IgnoreExtraneous\ndata:\n  config.yaml: |\n    tunnel: %s\n    credentials-file: /etc/cloudflared/credentials.json\n    ingress:\n      - hostname: %s\n        service: %s\n        originRequest:\n          noTLSVerify: %s\n      - service: http_status:404\n' "$TCMAP" "$TID" "$THOST" "$TSVC" "$TTLS" | kubectl apply -f -
+                fi
+              }
+
+              # ── Helper: ensure credentials file exists ───────────────
+              ensure_creds_file() {
+                local TID=$1 TNAME=$2
+                if [ ! -f "/root/.cloudflared/${TID}.json" ]; then
+                  log "INFO" "Credentials file missing, downloading..."
+                  cf_retry cloudflared tunnel token --cred-file /root/.cloudflared/${TID}.json "$TNAME" || \
+                    cf_retry cloudflared tunnel credentials download "$TID" --output /root/.cloudflared/${TID}.json || true
+                fi
+              }
+
+              # ── Main: setup tunnel ───────────────────────────────────
+              setup_tunnel() {
+                local TNAME=$1 THOST=$2 TSVC=$3 TSECRET=$4 TCMAP=$5 TTLS=$6
+
+                log "INFO" "[$TNAME] Checking tunnel in Cloudflare..."
+                TID=$(get_tunnel_id "$TNAME")
+
+                if [ -z "$TID" ]; then
+                  log "INFO" "[$TNAME] Creating new tunnel..."
+                  COUNT=0
+                  until [ $COUNT -ge 5 ]; do
+                    CREATE_OUTPUT=$(cloudflared tunnel create "$TNAME" 2>&1 || true)
+                    echo "$CREATE_OUTPUT"
+                    sleep 3
+                    TID=$(get_tunnel_id "$TNAME")
+                    if [ -n "$TID" ]; then
+                      log "INFO" "[$TNAME] Tunnel created/found with ID: $TID"
+                      break
+                    fi
+                    if echo "$CREATE_OUTPUT" | grep -q "already exists"; then
+                      log "WARN" "[$TNAME] Tunnel exists per API, retrying list..."
+                      sleep 5
+                      TID=$(get_tunnel_id "$TNAME")
+                      [ -n "$TID" ] && log "INFO" "[$TNAME] Found with ID: $TID" && break
+                    fi
+                    COUNT=$((COUNT+1))
+                    log "WARN" "[$TNAME] Not found yet, retry $COUNT/5 in 15s..."
+                    sleep 15
+                  done
+                  if [ -z "$TID" ]; then
+                    log "ERROR" "[$TNAME] Failed to create tunnel after 5 retries"
+                    exit 1
+                  fi
+                else
+                  log "INFO" "[$TNAME] Tunnel already exists with ID: $TID"
+                  log "INFO" "[$TNAME] Re-generating credentials file..."
+                  cf_retry cloudflared tunnel token --cred-file /root/.cloudflared/${TID}.json "$TNAME" || true
+                fi
+
+                ensure_creds_file "$TID" "$TNAME"
+
+                log "INFO" "[$TNAME] Setting DNS route..."
+                cf_retry cloudflared tunnel route dns --overwrite-dns "$TNAME" "$THOST" || true
+
+                log "INFO" "[$TNAME] Checking credentials secret..."
+                if kubectl get secret "$TSECRET" -n cloudflared > /dev/null 2>&1; then
+                  log "INFO" "[$TNAME] Secret exists — checking if valid..."
+                  SECRET_TUNNEL_ID=$(kubectl get secret "$TSECRET" -n cloudflared -o jsonpath='{.data.credentials\.json}' | base64 -d | python3 -c "import sys,json; print(json.load(sys.stdin).get('TunnelID',''))" 2>/dev/null || echo "")
+                  if [ "$SECRET_TUNNEL_ID" != "$TID" ]; then
+                    log "WARN" "[$TNAME] Secret has wrong tunnel ID ($SECRET_TUNNEL_ID vs $TID), recreating..."
+                    kubectl delete secret "$TSECRET" -n cloudflared
+                    kubectl create secret generic "$TSECRET" --from-file=credentials.json=/root/.cloudflared/${TID}.json -n cloudflared
+                  else
+                    log "INFO" "[$TNAME] Secret is valid, skipping"
+                  fi
+                else
+                  log "INFO" "[$TNAME] Creating credentials secret..."
+                  kubectl create secret generic "$TSECRET" --from-file=credentials.json=/root/.cloudflared/${TID}.json -n cloudflared
+                fi
+
+                log "INFO" "[$TNAME] Creating/updating configmap..."
+                apply_configmap "$TCMAP" "$TID" "$THOST" "$TSVC" "$TTLS"
+
+                log "INFO" "[$TNAME] Done ✓"
+              }
+
+              # ── Run setup for all enabled tunnels ────────────────────
+              {{- range $name, $tunnel := .Values.tunnels }}
+              {{- if $tunnel.enabled }}
+              setup_tunnel "{{ $tunnel.tunnelName }}" "{{ $tunnel.hostname }}" "{{ $tunnel.service }}" "{{ $tunnel.secretName }}" "{{ $tunnel.configMapName }}" "{{ $tunnel.noTLSVerify }}"
+              {{- end }}
+              {{- end }}
+
+              log "INFO" "All tunnels setup complete ✓"
+          env:
+            - name: CLOUDFLARE_CERT
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-secrets
+                  key: cert.pem
+          volumeMounts:
+            - name: tools
+              mountPath: /tools
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+      volumes:
+        - name: tools
+          emptyDir: {}
+{{- end }}

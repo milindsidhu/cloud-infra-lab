@@ -1,0 +1,29 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: job-pod-manager
+rules:
+  # Permission to create jobs in any namespace
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create"]
+  
+  # Permission to list pods in any namespace
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: job-pod-manager-binding
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: lang-app  # Binding to the 'default' service account in the 'lang-app' namespace
+roleRef:
+  kind: ClusterRole
+  name: job-pod-manager
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,63 @@
+{{/*
+  regulatedNoSANamespaces: Namespace + policy-scope label only.
+  No SA/Role created here — the workload's own Helm chart owns
+  its ServiceAccount and ClusterRole. Still fully in scope for
+  require-labels / require-resource-limits via the label.
+*/}}
+{{- range .Values.regulatedNoSANamespaces }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ . }}
+  labels:
+    app.kubernetes.io/managed-by: nc
+    secrets.io/managed: "true"
+    policy-scope: enforced
+---
+{{- end }}
+
+{{/*
+  appNamespaces: Namespace + label + sa-<namespace> ServiceAccount
+  + tailored least-privilege Role + RoleBinding, fully automated.
+*/}}
+{{- range $name, $cfg := .Values.appNamespaces }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/managed-by: nc
+    secrets.io/managed: "true"
+    policy-scope: enforced
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-{{ $name }}
+  namespace: {{ $name }}
+  labels:
+    app.kubernetes.io/managed-by: nc
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: role-{{ $name }}
+  namespace: {{ $name }}
+rules:
+{{- toYaml $cfg.roleRules | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-role-binding
+  namespace: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: sa-{{ $name }}
+    namespace: {{ $name }}
+roleRef:
+  kind: Role
+  name: role-{{ $name }}
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- end }}

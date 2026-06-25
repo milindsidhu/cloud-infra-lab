@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-stack
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/milindsidhu/Projects.git
+    targetRevision: main
+    path: HelmCharts/live/monitoring-stack
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+    targetRevision: main
+  sources: []
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

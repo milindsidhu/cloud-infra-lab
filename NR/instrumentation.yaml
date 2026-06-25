@@ -1,0 +1,16 @@
+apiVersion: newrelic.com/v1alpha2
+kind: Instrumentation
+metadata:
+  name: newrelic-instrumentation-python
+  namespace: newrelic
+spec:
+  agent:
+    language: python
+    image: newrelic/newrelic-python-init:latest
+  podLabelSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - runner-api-dev-lang-app
+          - runner-api-lang-app

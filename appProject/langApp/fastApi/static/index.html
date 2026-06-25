@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CodeLive - Online Code Runner</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      justify-content: center;
+    }
+
+    select,
+    button {
+      padding: 8px 16px;
+      font-size: 16px;
+    }
+
+    button {
+      background: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    .editor-container {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    #editor,
+    #terminal {
+      flex: 1 1 48%;
+      height: 400px;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    #editor {
+      border: 1px solid #ddd;
+    }
+
+    #terminal {
+      background: #000;
+      color: #fff;
+      padding: 10px;
+      font-family: monospace;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>CodeLive - Online Code Runner</h1>
+
+    <div class="controls">
+      <select id="language-select">
+        <option value="python">Python</option>
+        <option value="javascript">JavaScript</option>
+        <option value="go">Go</option>
+        <option value="java">Java</option>
+        <option value="csharp">C#</option>
+      </select>
+      <button id="run-btn">Run Code</button>
+      <button id="clear-btn">Clear Terminal</button>
+    </div>
+
+    <div class="editor-container">
+      <div id="editor"></div>
+      <div id="terminal" contenteditable="true" tabindex="0"></div>
+    </div>
+  </div>
+
+  <!-- Load Monaco loader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.40.0/min/vs/loader.min.js"></script>
+
+  <!-- App logic -->
+  <script>
+    let editor;
+    let socket = null;
+    let currentJobId = null;
+
+    const languageDefaults = {
+      python: 'print("Hello, World!")',
+      javascript: 'console.log("Hello, World!");',
+      go: 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("Hello, World!")\n}',
+      java: 'public class Main {\n\tpublic static void main(String[] args) {\n\t\tSystem.out.println("Hello, World!");\n\t}\n}',
+      csharp: 'using System;\n\nclass Program {\n\tstatic void Main() {\n\t\tConsole.WriteLine("Hello, World!");\n\t}\n}'
+    };
+
+    // Monaco init
+    require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.40.0/min/vs' } });
+    require(['vs/editor/editor.main'], function () {
+      editor = monaco.editor.create(document.getElementById('editor'), {
+        value: languageDefaults.python,
+        language: 'python',
+        theme: 'vs-dark',
+        automaticLayout: true
+      });
+
+      document.getElementById('language-select').addEventListener('change', (e) => {
+        const lang = e.target.value;
+        monaco.editor.setModelLanguage(editor.getModel(), lang);
+        editor.setValue(languageDefaults[lang] || '// Write your code here');
+      });
+    });
+
+    // Run code
+    document.getElementById('run-btn').addEventListener('click', async () => {
+      const code = editor.getValue();
+      const language = document.getElementById('language-select').value;
+      clearTerminal();
+
+      try {
+        const res = await fetch('/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, language }),
+        });
+
+        const data = await res.json();
+        currentJobId = data.job_id;
+        connectWebSocket(currentJobId);
+      } catch (err) {
+        appendToTerminal(`Error: ${err.message}`);
+      }
+    });
+
+    document.getElementById('clear-btn').addEventListener('click', clearTerminal);
+
+    function clearTerminal() {
+      const terminal = document.getElementById('terminal');
+      terminal.textContent = '';
+    }
+
+    function connectWebSocket(jobId) {
+      if (socket) socket.close();
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/${jobId}`;
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        appendToTerminal(`Connected to session: ${jobId}\n`);
+      };
+
+      socket.onmessage = (event) => {
+        appendToTerminal(event.data);
+      };
+
+      socket.onerror = (e) => {
+        console.error('WebSocket error:', e);
+        alert('WebSocket connection failed.');
+        appendToTerminal('\nWebSocket error occurred.');
+      };
+
+      socket.onclose = (e) => {
+        console.warn('WebSocket closed:', e.reason || e);
+        alert('Session ended.');
+        appendToTerminal(`\nSession ended: ${e.reason || 'No reason given.'}`);
+      };
+    }
+
+    function appendToTerminal(text) {
+      const terminal = document.getElementById('terminal');
+      terminal.textContent += text;
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    document.getElementById('terminal').addEventListener('keydown', (e) => {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+      const key = e.key;
+      if (key === 'Enter') {
+        e.preventDefault();
+        socket.send('\n');
+        appendToTerminal('\n');
+      } else if (key.length === 1) {
+        e.preventDefault();
+        socket.send(key);
+        appendToTerminal(key);
+      } else if (key === 'Backspace') {
+        e.preventDefault();
+        socket.send('\x7f'); // ASCII DEL
+        const terminal = document.getElementById('terminal');
+        terminal.textContent = terminal.textContent.slice(0, -1);
+      }
+    });
+  </script>
+</body>
+</html>

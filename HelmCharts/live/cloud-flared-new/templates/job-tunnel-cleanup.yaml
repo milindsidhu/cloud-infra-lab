@@ -1,0 +1,93 @@
+{{- if .Values.tunnelSetup.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cloudflared-tunnel-cleanup
+  namespace: cloudflared
+  labels:
+    app: cloudflared-tunnel-cleanup
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    argocd.argoproj.io/hook: PostDelete
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 120
+  template:
+    metadata:
+      labels:
+        app: cloudflared-tunnel-cleanup
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
+      restartPolicy: OnFailure
+      containers:
+        - name: cleanup
+          image: alpine:3.19
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              echo "==> Installing dependencies..."
+              apk add --no-cache curl wget python3 ca-certificates
+
+              echo "==> Installing kubectl..."
+              curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              chmod +x kubectl && mv kubectl /usr/local/bin/kubectl
+
+              echo "==> Installing cloudflared..."
+              wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared
+              chmod +x /usr/local/bin/cloudflared
+
+              echo "==> Writing cert.pem..."
+              mkdir -p /root/.cloudflared
+              echo "$CLOUDFLARE_CERT" > /root/.cloudflared/cert.pem
+
+              cleanup_tunnel() {
+                local TNAME=$1 TSECRET=$2 TCMAP=$3
+
+                echo "==> [$TNAME] Deleting configmap..."
+                kubectl delete configmap "$TCMAP" -n cloudflared --ignore-not-found
+
+                echo "==> [$TNAME] Deleting credentials secret..."
+                kubectl delete secret "$TSECRET" -n cloudflared --ignore-not-found
+
+                echo "==> [$TNAME] Deleting tunnel from Cloudflare..."
+                cloudflared tunnel delete --force "$TNAME" 2>/dev/null || echo "==> [$TNAME] Tunnel not found or already deleted"
+
+                echo "==> [$TNAME] Cleanup done"
+              }
+
+              # cleanup_tunnel "{{ .Values.tunnels.k8sApi.tunnelName }}" "{{ .Values.tunnels.k8sApi.secretName }}" "{{ .Values.tunnels.k8sApi.configMapName }}"
+
+              # {{- if .Values.tunnels.ssh.enabled }}
+              # cleanup_tunnel "{{ .Values.tunnels.ssh.tunnelName }}" "{{ .Values.tunnels.ssh.secretName }}" "{{ .Values.tunnels.ssh.configMapName }}"
+              # {{- end }}
+
+              # {{- if .Values.tunnels.argocd.enabled }}
+              # cleanup_tunnel "{{ .Values.tunnels.argocd.tunnelName }}" "{{ .Values.tunnels.argocd.secretName }}" "{{ .Values.tunnels.argocd.configMapName }}"
+              # {{- end }}
+
+              {{- range $name, $tunnel := .Values.tunnels }}
+              {{- if $tunnel.enabled }}
+              cleanup_tunnel "{{ $tunnel.tunnelName }}" "{{ $tunnel.secretName }}" "{{ $tunnel.configMapName }}"
+              {{- end }}
+              {{- end }}
+
+
+              echo "==> All tunnels cleaned up"
+          env:
+            - name: CLOUDFLARE_CERT
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-secrets
+                  key: cert.pem
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+{{- end }}

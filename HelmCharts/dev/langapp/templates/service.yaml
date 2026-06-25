@@ -1,0 +1,18 @@
+{{- range $ns := .Values.namespaces }}
+{{- range $env := $.Values.environment }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ if ne $env "prod" }}{{ printf "%s-%s-%s" $.Values.runnerApi.name $env $ns }}{{ else }}{{ printf "%s-%s" $.Values.runnerApi.name $ns }}{{ end }}
+  namespace: {{ $ns }}
+spec:
+  selector:
+    app: {{ if ne $env "prod" }}{{ printf "%s-%s-%s" $.Values.runnerApi.name $env $ns }}{{ else }}{{ printf "%s-%s" $.Values.runnerApi.name $ns }}{{ end }}
+  ports:
+    - name: http
+      port: {{ $.Values.runnerApi.servicePort }}
+      targetPort: {{ $.Values.runnerApi.port }}
+      protocol: TCP
+---
+{{- end }}
+{{- end }}

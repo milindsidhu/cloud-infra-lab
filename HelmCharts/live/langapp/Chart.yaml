@@ -1,0 +1,4 @@
+apiVersion: v2
+name: lang-app
+description: A Helm chart for lang-app with cert-manager and ingress
+version: 0.1.0

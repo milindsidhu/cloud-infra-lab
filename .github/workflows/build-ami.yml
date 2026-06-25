@@ -1,0 +1,83 @@
+name: Build AMI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ami:
+    runs-on: self-hosted
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN || 'arn:aws:iam::393503701266:role/eso-user-trust-role' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install AWS CLI
+        run: |
+          if command -v aws >/dev/null 2>&1; then
+            echo "aws CLI already present: $(aws --version)"
+            exit 0
+          fi
+
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            x86_64)  AWSCLI_URL="https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" ;;
+            aarch64) AWSCLI_URL="https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" ;;
+            *) echo "ERROR: Unsupported architecture: $ARCH" >&2; exit 1 ;;
+          esac
+
+          curl -sSL "$AWSCLI_URL" -o /tmp/awscliv2.zip
+          unzip -q /tmp/awscliv2.zip -d /tmp
+          /tmp/aws/install -i "$HOME/.local/aws-cli" -b "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.1.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: github-actions-ec2-lookup
+          role-skip-session-tagging: true
+
+      - name: Get instance type from tagged EC2 instances
+        id: get-instance-type
+        run: |
+          if ! command -v aws >/dev/null 2>&1; then
+            echo "ERROR: aws CLI is not available on this runner." >&2
+            exit 1
+          fi
+
+          # Look at all running/stopped instances with a given tag and find the
+          # most common instance type among them.
+          INSTANCE_TYPE=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=warmachine" "Name=instance-state-name,Values=running,stopped" \
+            --query "Reservations[].Instances[].InstanceType" \
+            --output text | tr '\t' '\n' | sort | uniq -c | sort -rn | head -1 | awk '{print $2}')
+
+          if [ -z "$INSTANCE_TYPE" ]; then
+            echo "ERROR: No instance (running or stopped) found with tag Name=warmachine." >&2
+            exit 1
+          fi
+
+          echo "Selected instance type: $INSTANCE_TYPE"
+          echo "instance_type=$INSTANCE_TYPE" >> "$GITHUB_OUTPUT"
+
+      - name: Build AMI
+        id: build
+        uses: ./.github/actions/build-ami
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: github-actions-packer-build
+          packer-template: packer/amazon-linux.pkr.hcl
+          packer-vars: |
+            instance_type=${{ steps.get-instance-type.outputs.instance_type }}
+            region=${{ env.AWS_REGION }}
+            ami_name=my-app-${{ github.sha }}
+
+      - name: Show resulting AMI ID
+        run: 'echo "Built AMI: ${{ steps.build.outputs.ami-id }}"'

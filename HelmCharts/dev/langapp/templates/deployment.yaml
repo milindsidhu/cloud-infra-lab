@@ -1,0 +1,36 @@
+{{- range $ns := .Values.namespaces }}
+{{- range $env := $.Values.environment }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ if ne $env "prod" }}{{ printf "%s-%s-%s" $.Values.runnerApi.name $env $ns }}{{ else }}{{ printf "%s-%s" $.Values.runnerApi.name $ns }}{{ end }}
+  namespace: {{ $ns }}
+spec:
+  replicas: {{ $.Values.runnerApi.replicas }}
+  selector:
+    matchLabels:
+      app: {{ if ne $env "prod" }}{{ printf "%s-%s-%s" $.Values.runnerApi.name $env $ns }}{{ else }}{{ printf "%s-%s" $.Values.runnerApi.name $ns }}{{ end }}
+  template:
+    metadata:
+      labels:
+        app: {{ if ne $env "prod" }}{{ printf "%s-%s-%s" $.Values.runnerApi.name $env $ns }}{{ else }}{{ printf "%s-%s" $.Values.runnerApi.name $ns }}{{ end }}
+    spec:
+      serviceAccountName: sa-{{ $ns }}
+      imagePullSecrets:
+        - name: {{ $.Values.runnerApi.imagePullSecret }}
+      containers:
+        - name: {{ $.Values.runnerApi.name }}
+          image: {{ $.Values.runnerApi.image }}
+          imagePullPolicy: {{ $.Values.runnerApi.imagePullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ $.Values.runnerApi.port }}
+          env:
+            - name: ENVIRONMENT
+              value: {{ $env | quote }}
+            - name: NAMESPACE
+              value: {{ $ns | quote }}
+            - name: NEW_RELIC_APP_NAME
+              value: {{ if ne $env "prod" }}{{ printf "%s-%s-%s" $env $.Values.runnerApi.name $ns }}{{ else }}{{ printf "%s-%s" $.Values.runnerApi.name $ns }}{{ end }}
+---
+{{- end }}
+{{- end }}

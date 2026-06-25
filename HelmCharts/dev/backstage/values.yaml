@@ -1,0 +1,23 @@
+namespace: backstage
+
+postgres:
+  image: postgres:18-trixie
+  replicas: 1
+  storage: 2Gi
+  storageClass: manual
+  hostPath: /mnt/data
+  user: backstage
+  password: backstage
+  db: backstage
+  port: 5432
+  fsGroup: 999
+
+backstage:
+  image: milindsidhu/backstage:v2.0.0
+  replicas: 1
+  nodePort: 30007
+  authSecret: supersecret123
+  githubToken: randomtoken     # to be replaed by eso secret reference
+  env:
+    NODE_ENV: production
+  port: 7007

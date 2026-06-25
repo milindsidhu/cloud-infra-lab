@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "splunk-siem-explorer.fullname" . }}-postgres
+  labels:
+    {{- include "splunk-siem-explorer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: postgresql
+  ports:
+    - port: {{ .Values.postgresql.service.port }}
+      targetPort: 5432

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: eso-config
+description: Configures External Secrets Operator with AWS SecretsManager ClusterSecretStore
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backstage-postgres
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.postgres.replicas }}
+  selector:
+    matchLabels:
+      app: backstage-postgres
+  template:
+    metadata:
+      labels:
+        app: backstage-postgres
+    spec:
+      securityContext:
+        fsGroup: {{ .Values.postgres.fsGroup }}
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports:
+            - containerPort: {{ .Values.postgres.port }}
+          envFrom:
+            - secretRef:
+                name: backstage-db-secret
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-storage-claim

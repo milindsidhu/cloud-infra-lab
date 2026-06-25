@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/milindsidhu/Projects.git
+    targetRevision: dev/MS
+    path: HelmCharts/live/monitoring
+    helm:
+      releaseName: monitoring
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      name: grafana-admin-secret
+      jsonPointers:
+        - /spec/data

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: external-secrets-wrapper
+description: Wrapper chart vendoring external-secrets as a dependency
+type: application
+version: 0.1.0
+dependencies:
+  - name: external-secrets
+    version: 2.6.0
+    repository: https://charts.external-secrets.io

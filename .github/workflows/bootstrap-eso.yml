@@ -1,0 +1,92 @@
+name: Bootstrap ESO
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bootstrap-eso:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubeconfig
+        id: kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.K8S_CONFIG_2026 }}" > ~/.kube/config
+
+      # ── Step 1 — AWS credentials secret ──────────────────────────────
+      - name: Create aws-credentials secret for ESO
+        id: aws-credentials
+        if: steps.kubeconfig.conclusion == 'success'
+        run: |
+          kubectl create secret generic aws-credentials \
+            --from-literal=access-key=${{ secrets.AWS_ACCESS_KEY_ID }} \
+            --from-literal=secret-key=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+            -n external-secrets \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          echo "==> aws-credentials secret applied"
+          kubectl get secret aws-credentials -n external-secrets
+
+      # ── Step 2 — ClusterSecretStore ──────────────────────────────────
+      - name: Apply ClusterSecretStore
+        id: cluster-secret-store
+        if: steps.aws-credentials.conclusion == 'success'
+        run: |
+          kubectl apply -f eso-bootstrap/k8s/cluster-secret-store.yaml
+          echo "==> ClusterSecretStore applied"
+
+      - name: Wait for ClusterSecretStore to be ready
+        id: cluster-secret-store-ready
+        if: steps.cluster-secret-store.conclusion == 'success'
+        run: |
+          kubectl wait clustersecretstore aws-secrets-manager \
+            --for=condition=Ready \
+            --timeout=60s
+          echo "==> ClusterSecretStore ready"
+
+      # ── Step 3 — ClusterExternalSecret ───────────────────────────────
+      - name: Apply ClusterExternalSecret
+        id: cluster-external-secret
+        if: steps.cluster-secret-store-ready.conclusion == 'success'
+        run: |
+          kubectl apply -f eso-bootstrap/k8s/cluster-external-secret.yaml
+          echo "==> ClusterExternalSecret applied"
+
+      # ── Step 4 — Wait for sync ────────────────────────────────────────
+      - name: Wait for secrets to sync into namespaces
+        id: wait-sync
+        if: steps.cluster-external-secret.conclusion == 'success'
+        run: |
+          echo "==> Waiting for cluster-secrets in cloudflared..."
+          kubectl wait externalsecret cluster-secrets \
+            -n cloudflared \
+            --for=condition=Ready \
+            --timeout=120s
+
+          echo "==> Waiting for cluster-secrets in actions-runner-system..."
+          kubectl wait externalsecret cluster-secrets \
+            -n actions-runner-system \
+            --for=condition=Ready \
+            --timeout=120s
+
+      # ── Step 5 — Verify ───────────────────────────────────────────────
+      - name: Verify secrets synced into all namespaces
+        if: steps.wait-sync.conclusion == 'success'
+        run: |
+          echo "==> ClusterSecretStore"
+          kubectl get clustersecretstore
+
+          echo "==> ClusterExternalSecret"
+          kubectl get clusterexternalsecret
+
+          echo "==> Synced secrets"
+          kubectl get secret cluster-secrets -n cloudflared
+          kubectl get secret cluster-secrets -n actions-runner-system
+
+          echo "==> ESO Bootstrap complete"

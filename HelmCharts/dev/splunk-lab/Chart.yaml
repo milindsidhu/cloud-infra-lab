@@ -1,0 +1,6 @@
+apiVersion: v2
+name: splunk-lab
+description: Load-generating target app with Splunk Universal Forwarder for SIEM monitoring
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

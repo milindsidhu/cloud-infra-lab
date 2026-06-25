@@ -1,0 +1,12 @@
+apiVersion: v2
+name: cloudflared
+description: Cloudflare Tunnel deployments for exposing local K8s services
+type: application
+version: 1.0.0
+appVersion: "2025.4.0"
+keywords:
+  - cloudflare
+  - tunnel
+  - networking
+maintainers:
+  - name: solidshop

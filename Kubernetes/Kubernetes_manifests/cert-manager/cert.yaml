@@ -1,0 +1,48 @@
+# Create a secret in 'cert-manager' namespace to verify domain ownership
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-token-secret
+  namespace: cert-manager
+type: Opaque
+stringData:
+  api-token: <API_TOKEN>
+
+---
+# create a clusterissuer
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: x@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-dns-key-prod
+    solvers:
+      - dns01:
+          cloudflare:
+            email: x@gmail.com
+            apiTokenSecretRef:
+              name: cloudflare-api-token-secret
+              key: api-token
+
+# ---
+# # create a certificate
+
+# # create a certificate using below template for you app per namespace
+
+# apiVersion: cert-manager.io/v1
+# kind: Certificate
+# metadata:
+#   name: multi-cert
+#   namespace: test  # <---- insert your namespace here
+# spec:
+#   secretName: multi-cert-self-secret
+#   issuerRef:
+#     name: letsencrypt-prod
+#     kind: ClusterIssuer
+#   dnsNames:
+#     - "*<domain>"
+    

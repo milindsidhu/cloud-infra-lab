@@ -1,0 +1,115 @@
+name: 'Build AMI with Packer'
+description: 'Builds an AWS AMI using HashiCorp Packer and outputs the resulting AMI ID'
+
+inputs:
+  aws-access-key-id:
+    description: 'AWS access key ID'
+    required: true
+  aws-secret-access-key:
+    description: 'AWS secret access key'
+    required: true
+  aws-region:
+    description: 'AWS region to build the AMI in'
+    required: false
+    default: 'ap-south-1'
+  role-to-assume:
+    description: 'Optional IAM role ARN to assume after authenticating with the access key/secret'
+    required: false
+    default: ''
+  role-session-name:
+    description: 'Session name to use when assuming role-to-assume'
+    required: false
+    default: 'github-actions-build-ami'
+  role-skip-session-tagging:
+    description: 'Skip tagging the assumed-role session (avoids needing sts:TagSession)'
+    required: false
+    default: 'true'
+  packer-template:
+    description: 'Path to the Packer template (.pkr.hcl)'
+    required: true
+  var-file:
+    description: 'Optional path to a Packer .pkrvars.hcl file'
+    required: false
+    default: ''
+  packer-vars:
+    description: |
+      Newline-separated KEY=VALUE pairs passed to Packer as -var flags.
+      Example:
+        instance_type=t3.medium
+        region=us-west-2
+    required: false
+    default: ''
+  packer-version:
+    description: 'Packer version to install'
+    required: false
+    default: 'latest'
+
+outputs:
+  ami-id:
+    description: 'The ID of the AMI produced by the build'
+    value: ${{ steps.extract-ami.outputs.ami_id }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Packer
+      uses: hashicorp/setup-packer@main
+      with:
+        version: ${{ inputs.packer-version }}
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v6.1.0
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+        role-to-assume: ${{ inputs.role-to-assume }}
+        role-session-name: ${{ inputs.role-session-name }}
+        role-skip-session-tagging: ${{ inputs.role-skip-session-tagging }}
+
+    - name: Packer init
+      shell: bash
+      run: packer init "${{ inputs.packer-template }}"
+
+    - name: Packer validate
+      shell: bash
+      run: |
+        VAR_ARGS=""
+        if [ -n "${{ inputs.packer-vars }}" ]; then
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            VAR_ARGS="$VAR_ARGS -var $line"
+          done <<< "${{ inputs.packer-vars }}"
+        fi
+
+        if [ -n "${{ inputs.var-file }}" ]; then
+          packer validate -var-file="${{ inputs.var-file }}" $VAR_ARGS "${{ inputs.packer-template }}"
+        else
+          packer validate $VAR_ARGS "${{ inputs.packer-template }}"
+        fi
+
+    - name: Packer build
+      shell: bash
+      run: |
+        VAR_ARGS=""
+        if [ -n "${{ inputs.packer-vars }}" ]; then
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            VAR_ARGS="$VAR_ARGS -var $line"
+          done <<< "${{ inputs.packer-vars }}"
+        fi
+
+        if [ -n "${{ inputs.var-file }}" ]; then
+          packer build -machine-readable -var-file="${{ inputs.var-file }}" $VAR_ARGS "${{ inputs.packer-template }}" | tee packer-build.log
+        else
+          packer build -machine-readable $VAR_ARGS "${{ inputs.packer-template }}" | tee packer-build.log
+        fi
+
+    - name: Extract AMI ID
+      id: extract-ami
+      shell: bash
+      run: |
+        AMI_LINE=$(grep 'artifact,0,id' packer-build.log | tail -1)
+        AMI_ID=$(echo "$AMI_LINE" | awk -F',' '{print $NF}' | cut -d':' -f2)
+        echo "AMI ID: $AMI_ID"
+        echo "ami_id=$AMI_ID" >> "$GITHUB_OUTPUT"

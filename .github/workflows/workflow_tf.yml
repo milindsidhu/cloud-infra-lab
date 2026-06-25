@@ -1,0 +1,271 @@
+name: A Workflow for Terraform
+on:
+  workflow_dispatch:
+    branches:
+      - 'main'
+    inputs:
+      run_plan:
+        description: "Set to true to run the TF PLAN, false to skip."
+        required: true
+        default: "false"  # Default value can be "true" or "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      run_apply:
+        description: "Set to true to run the TF APPLY, false to skip."
+        required: true
+        default: "false"  # Default value can be "true" or "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      run_destroy:
+        description: "Set to true to run the TF DESTROY, false to skip."
+        required: true
+        default: "false"  # Default value can be "true" or "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      github_runner:
+        description: "Choose the Github Runner"
+        required: true
+        default: "ubuntu-latest"
+        type: choice
+        options:
+          - "ubuntu-latest"
+          - "self-hosted"
+  push:
+    branches:
+      - 'testing'
+
+
+env:
+  TF_VAR_ARM_CLIENT_ID: ${{ secrets.TF_VAR_ARM_CLIENT_ID }}
+  TF_VAR_ARM_CLIENT_SECRET: ${{ secrets.TF_VAR_ARM_CLIENT_SECRET }}
+  TF_VAR_ARM_TENANT_ID: ${{ secrets.TF_VAR_ARM_TENANT_ID }}
+  TF_VAR_ARM_SUBSCRIPTION_ID: ${{ secrets.TF_VAR_ARM_SUBSCRIPTION_ID }}
+  ARM_CLIENT_ID: ${{ secrets.TF_VAR_ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.TF_VAR_ARM_CLIENT_SECRET }}
+  ARM_TENANT_ID: ${{ secrets.TF_VAR_ARM_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.TF_VAR_ARM_SUBSCRIPTION_ID }}
+
+jobs:
+  # Terraform Apply Stage
+  tf_plan:
+    # runs-on: ['self-hosted', 'Linux' ]
+    runs-on: ${{ github.ref == 'refs/heads/main' && inputs.github_runner || 'ubuntu-latest' }}
+    if: always()  
+    defaults:
+      run:
+        shell: bash
+        working-directory: "${{ github.workspace }}/Terraform/ecom"
+
+    steps:
+      - name: "Checkout the Repository"
+        uses: actions/checkout@v4
+        id: checkout
+    
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: "Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+        id: setupTerraform
+
+# #### not working on selfhosted ####
+
+#       # - name: "Azure Login"
+#       #   uses: azure/login@v2
+#       #   id: azureLogin
+#       #   with:
+#       #     creds: '{
+#       #               "clientId": "${{ secrets.TF_VAR_ARM_CLIENT_ID }}",
+#       #               "tenantId": "${{ secrets.TF_VAR_ARM_TENANT_ID }}",
+#       #               "subscriptionId": "${{ secrets.TF_VAR_ARM_SUBSCRIPTION_ID }}",
+#       #               "clientSecret": "${{ secrets.TF_VAR_ARM_CLIENT_SECRET }}"
+#       #             }'
+
+      - name: Azure Login
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+                      az login --service-principal \
+                      -t "${{ secrets.TF_VAR_ARM_TENANT_ID }}" \
+                      -u "${{ secrets.TF_VAR_ARM_CLIENT_ID }}" \
+                      -p "${{ secrets.TF_VAR_ARM_CLIENT_SECRET }}" 
+                      az account set -s "${{ secrets.TF_VAR_ARM_SUBSCRIPTION_ID }}" 
+
+      - name: Modify the Backend StateFile Path
+        run: |
+              sed -i "s|path = \"\"|path = \"$HOME/WORKSPACE/StateFileStorage/terraform.tfstate\"|" backend.tf                
+      
+      - name: "Terraform Init"
+        id: init
+        run: terraform init
+        
+      - name: "Terraform Format"
+        id: tfFormat
+        run: terraform fmt -recursive
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+              terraform plan -out=planOutput
+              echo "Showing the Terraform Plan"
+              terraform show planOutput
+
+      - name: "Upload TF Plan Output"
+        uses: actions/upload-artifact@v4
+        with:
+          name: planOutput
+          path: "${{ github.workspace }}/Terraform/ecom/planOutput"
+          compression-level: 0
+
+# ##### NOT IN USE #####
+          
+#       # - name: "Cleanup SSH Keys"
+#       #   if: always()  # Ensure this step runs regardless of the previous steps' success or failure
+#       #   run: |
+#       #         DATE=$(date +'%Y%m%d')
+#       #         CUSTOM_SSH_KEY_PATH="$HOME/.ssh/temp_linux_to_mac_key_$DATE"
+#       #         KEYNAME=temp_linux_to_mac_key_$DATE
+        
+#       #         # Remove the generated keys
+#       #         rm -f "$CUSTOM_SSH_KEY_PATH" "$CUSTOM_SSH_KEY_PATH.pub"  
+        
+#       #         # Restore the known_hosts file if a backup exists
+#       #         if [ -f "$HOME/.ssh/known_hosts.bak_$DATE" ]; then
+#       #             mv "$HOME/.ssh/known_hosts.bak_$DATE" "$HOME/.ssh/known_hosts"  # Restore the backup
+#       #             echo "Restored known_hosts from known_hosts.bak_$DATE"
+#       #         else
+#       #             echo "No backup of known_hosts found to restore."
+#       #         fi
+        
+#       #         # Restore the authorized_keys file if a backup exists
+#       #         if [ -f "$HOME/.ssh/authorized_keys.bak_$DATE" ]; then
+#       #             mv "$HOME/.ssh/authorized_keys.bak_$DATE" "$HOME/.ssh/authorized_keys"  # Restore the backup
+#       #             echo "Restored authorized_keys from authorized_keys.bak_$DATE"
+#       #         else
+#       #             echo "No backup of authorized_keys found to restore."
+#       #         fi
+
+  # Terraform Apply Stage
+  tf_apply:
+    # runs-on: ['self-hosted', 'Linux' ]
+    runs-on: ${{ github.ref == 'refs/heads/main' && inputs.github_runner || 'ubuntu-latest' }}
+    if: ${{ inputs.run_apply == 'true' }}
+    needs: tf_plan
+    defaults:
+      run:
+        shell: bash
+        working-directory: "${{ github.workspace }}/Terraform/ecom/"
+        
+    steps:
+      - name: "Checkout the Repository"
+        uses: actions/checkout@v4
+        id: checkout
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: "Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+        id: setupTerraform
+  
+      - name: Azure Login
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+                      az login --service-principal \
+                      -t "${{ secrets.TF_VAR_ARM_TENANT_ID }}" \
+                      -u "${{ secrets.TF_VAR_ARM_CLIENT_ID }}" \
+                      -p "${{ secrets.TF_VAR_ARM_CLIENT_SECRET }}" 
+                      az account set -s "${{ secrets.TF_VAR_ARM_SUBSCRIPTION_ID }}" 
+      
+      - name: Modify the Backend StateFile Path
+        run: |
+              sed -i "s|path = \"\"|path = \"$HOME/WORKSPACE/StateFileStorage/terraform.tfstate\"|" backend.tf
+
+      - name: "Download TF Plan"
+        uses: actions/download-artifact@v4
+        with: 
+          name: planOutput
+          path: "${{ github.workspace }}/Terraform/ecom/planOutput"
+
+      - name: Extract Plan
+        run: |
+              mv ${{ github.workspace }}/Terraform/ecom/planOutput/planOutput ${{ github.workspace }}/Terraform/ecom/planOUTPUT
+
+      - name: "Terraform Init"
+        id: init
+        run: terraform init
+
+      - name: Show Terraform Plan
+        run: terraform show planOUTPUT
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve planOUTPUT
+
+  # Terraform Destroy Stage
+  tf_destroy:
+    # runs-on: ['self-hosted', 'Linux' ]
+    runs-on: ${{ github.ref == 'refs/heads/main' && inputs.github_runner || 'ubuntu-latest' }}
+    if: ${{ inputs.run_destroy == 'true' }}
+    needs: tf_apply
+    defaults:
+      run:
+        shell: bash
+        working-directory: "${{ github.workspace }}/Terraform/ecom/"
+        
+    steps:
+      - name: "Checkout the Repository"
+        uses: actions/checkout@v4
+        id: checkout
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: "Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+        id: setupTerraform
+  
+      - name: Azure Login
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+                      az login --service-principal \
+                      -t "${{ secrets.TF_VAR_ARM_TENANT_ID }}" \
+                      -u "${{ secrets.TF_VAR_ARM_CLIENT_ID }}" \
+                      -p "${{ secrets.TF_VAR_ARM_CLIENT_SECRET }}" 
+                      az account set -s "${{ secrets.TF_VAR_ARM_SUBSCRIPTION_ID }}" 
+
+      - name: Modify the Backend StateFile Path
+        run: |
+              sed -i "s|path = \"\"|path = \"$HOME/WORKSPACE/StateFileStorage/terraform.tfstate\"|" backend.tf
+      
+      - name: "Terraform Init"
+        id: init
+        run: terraform init
+
+      - name: Show Terraform Plan
+        run: |
+              terraform plan -destroy -out=planDestroyOutput
+              terraform show planDestroyOutput
+
+      - name: Terraform Destroy
+        run: terraform apply -auto-approve planDestroyOutput

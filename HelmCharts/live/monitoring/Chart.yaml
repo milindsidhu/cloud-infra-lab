@@ -1,0 +1,10 @@
+apiVersion: v2
+name: monitoring
+description: Prometheus + Grafana + Alertmanager stack for solidshop cluster
+type: application
+version: 1.0.0
+appVersion: "latest"
+dependencies:
+  - name: kube-prometheus-stack
+    version: "65.1.1"
+    repository: https://prometheus-community.github.io/helm-charts

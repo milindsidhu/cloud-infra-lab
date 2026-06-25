@@ -1,0 +1,14 @@
+# ignore these files
+/.idea/*
+/.vscode/*
+
+# Ignore Terraform files in all directories
+**/*.tfstate
+**/*.tfstate.backup
+**/*.lock.hcl
+**/.terraform/**/*
+**/langApp/fastApi/kubectl.terraform/
+LocalRemote/database/
+*.tfstate
+*.tfstate.backup
+.DS_Store

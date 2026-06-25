@@ -1,0 +1,35 @@
+{{- if .Values.cleanupKopfFinalizer.enabled }}
+---
+{{- range $ns := .Values.namespaces }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cleanup-kopf-finalizer-{{ $ns }}
+  namespace: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/sync-wave: '1'
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: sa-{{ $ns }}
+      containers:
+        - name: finalizer-remover
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Removing Kopf finalizer from CR in {{ $ns }}..."
+              if kubectl get secretreplicator.kopf.dev secret-replicator-cr-{{ $ns }} -n {{ $ns }} &>/dev/null; then
+                kubectl patch secretreplicator.kopf.dev secret-replicator-cr-{{ $ns }} -n {{ $ns }} --type=merge -p '{"metadata":{"finalizers":[]}}'
+                echo "Patching Done!"
+              else
+                echo "Resource secret-replicator-cr-{{ $ns }} not found, skipping patch"
+              fi
+              sleep 60
+---
+{{- end }}
+{{- end }}

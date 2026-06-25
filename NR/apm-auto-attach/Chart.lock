@@ -1,0 +1,6 @@
+dependencies:
+- name: k8s-agents-operator
+  repository: https://newrelic.github.io/k8s-agents-operator
+  version: 0.27.1
+digest: sha256:8dd68cac392dcecc4a4e5ae9d2eefcc06453077da909661761c2c35115219f27
+generated: "2025-06-10T23:48:45.6900379+05:30"

@@ -1,0 +1,8 @@
+apiVersion: v2
+name: my-runner-ctrl
+description: Custom chart that includes actions-runner-controller as a dependency
+version: 0.1.0
+dependencies:
+  - name: actions-runner-controller
+    version: 0.23.7           # Pick a version you want to pin
+    repository: https://actions-runner-controller.github.io/actions-runner-controller

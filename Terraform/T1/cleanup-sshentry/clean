@@ -1,0 +1,4 @@
+ssh-keygen -f ~/.ssh/known_hosts -R 34.69.85.81
+
+ssh-keygen -f ~/.ssh/known_hosts -R 10.0.0.4
+ssh-keygen -f ~/.ssh/known_hosts -R 10.0.0.2

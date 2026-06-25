@@ -1,0 +1,6 @@
+dependencies:
+- name: kubernetes-replicator
+  repository: https://helm.mittwald.de
+  version: 2.11.1
+digest: sha256:e645e54e2de77b3675090e9ca9046c2af274f338c7ff73d1fba1f48b9a9359df
+generated: "2025-07-04T13:28:57.7153823+05:30"

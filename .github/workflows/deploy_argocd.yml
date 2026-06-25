@@ -1,0 +1,27 @@
+name: A Workflow for Kubernetes Deployments
+
+on:  
+  workflow_dispatch:
+    inputs:
+      github_runner:
+        description: "Choose the Github Runner"
+        required: true
+        default: "ubuntu-latest"
+        type: choice
+        options:
+          - "ubuntu-latest"
+          - "self-hosted"
+
+jobs:
+  deploy:
+    name: Deloy to Cluster
+    uses: ./.github/workflows/setup_k8s.yml
+    with:
+      github_runner: ${{ inputs.github_runner }}
+      commands: |
+                cd $GITHUB_WORKSPACE/scripts/shell
+                chmod +x deploy_argo.sh
+                ./deploy_argo.sh
+      application_name: Argocd
+    secrets: inherit
+    

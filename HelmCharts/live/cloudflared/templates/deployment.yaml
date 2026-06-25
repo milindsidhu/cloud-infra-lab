@@ -1,0 +1,125 @@
+{{- if .Values.tunnels.k8sApi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: cloudflared
+  labels:
+    app: cloudflared
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudflared
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
+      containers:
+        - name: cloudflared
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - tunnel
+            - --config
+            - /etc/cloudflared/config/config.yaml
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflared/config
+              readOnly: true
+            - name: creds
+              mountPath: /etc/cloudflared
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory }}
+              cpu: {{ .Values.resources.requests.cpu }}
+            limits:
+              memory: {{ .Values.resources.limits.memory }}
+              cpu: {{ .Values.resources.limits.cpu }}
+      volumes:
+        - name: config
+          configMap:
+            name: cloudflared-config
+        - name: creds
+          secret:
+            secretName: {{ .Values.tunnels.k8sApi.secretName }}
+{{- end }}
+---
+{{- if .Values.tunnels.ssh.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ssh-cloudflared
+  namespace: cloudflared
+  labels:
+    app: ssh-cloudflared
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ssh-cloudflared
+  template:
+    metadata:
+      labels:
+        app: ssh-cloudflared
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
+      containers:
+        - name: cloudflared
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - tunnel
+            - --config
+            - /etc/cloudflared/config/config.yaml
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflared/config
+              readOnly: true
+            - name: creds
+              mountPath: /etc/cloudflared
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory }}
+              cpu: {{ .Values.resources.requests.cpu }}
+            limits:
+              memory: {{ .Values.resources.limits.memory }}
+              cpu: {{ .Values.resources.limits.cpu }}
+      volumes:
+        - name: config
+          configMap:
+            name: ssh-cloudflared-config
+        - name: creds
+          secret:
+            secretName: {{ .Values.tunnels.ssh.secretName }}
+{{- end }}

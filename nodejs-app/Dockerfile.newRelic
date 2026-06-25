@@ -1,0 +1,54 @@
+# Base Node.js image
+FROM node:22-alpine3.18 as base
+
+# Set the working directory
+RUN mkdir -p /usr/src/app
+WORKDIR /usr/src/app
+
+# Copy package.json
+COPY package.json .
+
+# Install dependencies
+FROM base as dependencies
+
+# # Update and upgrade Alpine Linux package manager
+RUN apk update && apk upgrade
+RUN apk add --no-cache libcrypto3
+
+# Install app dependencies
+RUN npm install
+# RUN npm install semver@latest
+
+# Install New Relic
+RUN npm install newrelic
+
+# Copy the app files
+FROM dependencies as app
+WORKDIR /usr/src/app
+COPY . /usr/src/app
+
+# Release image
+FROM node:22-alpine3.18 as release
+# create a new directory for the app
+WORKDIR /usr/src/app
+
+# Copy the app files
+COPY --from=app /usr/src/app .
+COPY --from=dependencies /usr/src/app/node_modules ./node_modules
+
+# Set New Relic Environment Variables
+ENV NEW_RELIC_APP_NAME="nodejs-app" \
+    NEW_RELIC_LICENSE_KEY="YOUR_LICENSE_KEY" \
+    NEW_RELIC_LOG_ENABLED="true" \
+    NEW_RELIC_LOG="stdout" \
+    NEW_RELIC_LOG_LEVEL="info" \
+    NEW_RELIC_DISTRIBUTED_TRACING_ENABLED="true" \
+    NEW_RELIC_APPLICATION_LOGGING_METRICS_ENABLED="true" \
+    NEW_RELIC_APPLICATION_LOGGING_ENABLED="true" \
+    NEW_RELIC_ERROR_COLLECTOR_ENABLED="true" 
+
+# Expose the port    
+EXPOSE 8080
+
+# Start the app
+CMD ["npm", "start"]

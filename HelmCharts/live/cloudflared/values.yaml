@@ -1,0 +1,40 @@
+# Managed by namespace-controller - do not create namespace or SA here
+serviceAccount:
+  name: sa-cloudflared
+
+imagePullSecret: my-registry-secret
+
+tunnels:
+  k8sApi:
+    enabled: true
+    tunnelID: ab5aade4-71e7-416d-aa81-5cc22691d386
+    hostname: k8s-api.solidshop.in
+    service: https://kubernetes.default.svc.cluster.local:443
+    noTLSVerify: true
+    secretName: tunnel-credentials
+
+  ssh:
+    enabled: true
+    tunnelID: 9d2542cb-1cc8-4df5-9dbf-b2da3458a10d
+    hostname: sshmaster.solidshop.in
+    service: ssh://192.168.1.18:22
+    noTLSVerify: false
+    secretName: ssh-tunnel-credentials
+
+image:
+  repository: cloudflare/cloudflared
+  tag: "2025.4.0"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "128Mi"
+    cpu: "200m"
+
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 5

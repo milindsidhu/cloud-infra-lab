@@ -1,0 +1,78 @@
+# ──────────────────────────────────────────────────────────────────
+# Three categories of managed namespaces. Every namespace listed
+# anywhere below gets policy-scope=enforced, so require-labels and
+# require-resource-limits ALWAYS apply — there is no "infra exempt
+# from Kyverno" category. The only thing that varies is whether
+# this chart also creates a ServiceAccount + Role for it.
+# ──────────────────────────────────────────────────────────────────
+
+# regulatedNoSANamespaces: Namespace + policy-scope=enforced label
+# only. No sa-<namespace> ServiceAccount/Role is created here,
+# because the workload running in this namespace is a Helm-chart-
+# managed, cluster-scoped operator that ships its own ServiceAccount
+# and ClusterRole (e.g. needs to watch/manage resources across the
+# whole cluster, which a namespaced Role cannot grant regardless of
+# how it's written). These namespaces still MUST be excluded from
+# the require-namespace-service-account Kyverno policy specifically
+# (not from require-labels / require-resource-limits, which keep
+# applying via the label below).
+regulatedNoSANamespaces:
+  # - monitoring
+  # - metallb
+  - ingress-nginx
+  - actions-runner-system
+  - cert-manager
+  - external-secrets
+  - mittwald-replicator
+  - kyverno
+  - istio-system
+
+# ──────────────────────────────────────────────────────────────────
+# Reusable rule sets for appNamespaces below.
+# ──────────────────────────────────────────────────────────────────
+roleRuleSets:
+  standardApp: &standardApp
+    - apiGroups: [""]
+      resources: ["pods", "pods/log", "jobs", "configmaps", "secrets"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["get", "list", "create", "update", "delete"]
+    - apiGroups: ["batch"]
+      resources: ["jobs", "cronjobs"]
+      verbs: ["get", "list", "create", "delete", "watch", "update"]
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["ingresses"]
+      verbs: ["get", "list", "create", "update", "delete"]
+    - apiGroups: [""]
+      resources: ["secrets", "events"]
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
+    - apiGroups: ["apiextensions.k8s.io"]
+      resources: ["customresourcedefinitions"]
+      verbs: ["get", "list", "watch"]
+
+# ──────────────────────────────────────────────────────────────────
+# appNamespaces: full automated treatment — Namespace + label +
+# sa-<namespace> ServiceAccount + tailored Role + RoleBinding.
+# These ARE in scope for require-namespace-service-account.
+# ──────────────────────────────────────────────────────────────────
+appNamespaces:
+  mlflow:
+    roleRules: *standardApp
+  cloudflared:
+    roleRules: *standardApp
+
+  # lang-app:
+  #   roleRules: *standardApp
+
+# ──────────────────────────────────────────────────────────────────
+# Post-sync job: patches the shared image-pull secret in `default`
+# with a replicator annotation listing every managed namespace
+# (regulatedNoSANamespaces + appNamespaces combined), so
+# mittwald-replicator fans it out to all of them.
+# Note: cert-manager and cloudflared are NOT managed by this chart
+# (they're excluded at the Kyverno level entirely) — add them here
+# manually if the secret also needs to land there.
+# ──────────────────────────────────────────────────────────────────
+createPatchJob:
+  enabled: true

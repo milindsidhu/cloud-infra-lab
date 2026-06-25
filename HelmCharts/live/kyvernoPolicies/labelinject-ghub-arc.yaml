@@ -1,0 +1,26 @@
+# apiVersion: kyverno.io/v1
+# kind: ClusterPolicy
+# metadata:
+#   name: mutate-gha-runner-labels
+#   annotations:
+#     policies.kyverno.io/title: Inject GHA Runner Labels
+#     policies.kyverno.io/description: Inject required app and env labels into GitHub Actions runner pods created by ARC.
+# spec:
+#   background: false
+
+#   rules:
+#     - name: add-required-labels
+#       match:
+#         any:
+#           - resources:
+#               kinds:
+#                 - Pod
+#               namespaces:
+#                 - actions-runner-system
+
+#       mutate:
+#         patchStrategicMerge:
+#           metadata:
+#             labels:
+#               app: gha-runner
+#               env: prod

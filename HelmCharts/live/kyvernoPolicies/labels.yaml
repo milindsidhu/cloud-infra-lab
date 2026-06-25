@@ -1,0 +1,47 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-labels
+  annotations:
+    pod-policies.kyverno.io/autogen-controllers: none
+    policies.kyverno.io/title: Require Labels
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      All pods within namespaces labeled policy-scope=enforced
+      must have 'app' and 'env' labels.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-required-labels
+      match:
+        any:
+        - resources:
+            kinds:
+              - Pod
+            namespaceSelector:
+              matchLabels:
+                policy-scope: enforced
+      exclude:
+        any:
+        - resources:
+            namespaces:
+            - kube-system
+            - kube-public
+            - kube-node-lease
+            - argocd
+            - kyverno
+            - cert-manager
+            - cloudflared
+            - local-path-storage
+            - actions-runner-system
+            # - metallb
+      skipBackgroundRequests: true
+      validate:
+        allowExistingViolations: true
+        message: "Labels 'app' and 'env' are required."
+        pattern:
+          metadata:
+            labels:
+              app: "?*"
+              env: "?*"

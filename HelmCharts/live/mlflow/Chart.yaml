@@ -1,0 +1,10 @@
+apiVersion: v2
+name: mlflow
+version: 0.1.0
+dependencies:
+  - name: minio
+    version: 5.4.0
+    repository: https://charts.min.io/
+  - name: postgresql
+    version: 18.7.5
+    repository: https://charts.bitnami.com/bitnami

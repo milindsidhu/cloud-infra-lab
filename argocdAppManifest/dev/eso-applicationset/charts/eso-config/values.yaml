@@ -1,0 +1,19 @@
+aws:
+  region: ap-south-1
+  iamRole: arn:aws:iam::393503701266:role/eso-user-trust-role
+  credentials:
+    # These should be overridden via ArgoCD's Helm value files or a secret manager
+    # DO NOT commit real credentials here — use ArgoCD vault plugin or SOPS
+    accessKey: "REPLACE_ME"
+    secretAccessKey: "REPLACE_ME"
+
+secretStore:
+  name: aws-secretsmanager
+
+# Optional: deploy the test ExternalSecret
+testSecret:
+  enabled: true
+  name: ghub-token
+  namespace: default
+  remoteKey: ghub-token
+  refreshInterval: 1h

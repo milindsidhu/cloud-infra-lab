@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: online-code-runner
+spec:
+  destination:
+    namespace: lang-app
+    server: https://kubernetes.default.svc
+  source:
+    path: HelmCharts/live/langapp
+    repoURL: https://github.com/milindsidhu/Projects.git
+    targetRevision: main
+  sources: []
+  project: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+destination:
+  namespace: lang-app
+  server: https://kubernetes.default.svc
+source:
+  path: HelmCharts/live/langapp
+  repoURL: https://github.com/milindsidhu/Projects.git
+  targetRevision: main
+sources: []
+project: default
+syncPolicy:
+  automated:
+    prune: true
+    selfHeal: true
+  syncOptions:
+    - CreateNamespace=true

@@ -1,0 +1,40 @@
+{{- if .Values.runnerApi.checkTlsSecret.enabled }}
+{{- range $ns := .Values.namespaces }}
+{{- range $env := $.Values.environment }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wait-for-tls-secret{{ if ne $env "prod" }}-{{ $env }}{{ end }}-{{ $ns }}
+  namespace: {{ $ns }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: sa-{{ $ns }}
+      restartPolicy: Never
+      containers:
+        - name: wait
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for TLS secret '{{ printf "%s-%s" $.Values.runnerApi.ingress.tlsSecret $ns }}' in namespace '{{ $ns }}'..."
+              for i in $(seq 1 30); do
+                type=$(kubectl get secret {{ printf "%s-%s" $.Values.runnerApi.ingress.tlsSecret $ns }} -n {{ $ns | quote }} -o jsonpath='{.type}' 2>/dev/null)
+                if [ "$type" = "kubernetes.io/tls" ]; then
+                  echo "TLS Secret '{{ printf "%s-%s" $.Values.runnerApi.ingress.tlsSecret $ns }}' is ready."
+                  exit 0
+                fi
+                echo "Still waiting... ($i/30)"
+                sleep 10
+              done
+              echo "Timeout: TLS Secret '{{ printf "%s-%s" $.Values.runnerApi.ingress.tlsSecret $ns }}' was not created in time."
+              exit 1
+---
+{{- end }}
+{{- end }}
+{{- end }}

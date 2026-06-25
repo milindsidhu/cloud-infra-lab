@@ -1,0 +1,34 @@
+# apiVersion: kyverno.io/v1
+# kind: ClusterPolicy
+# metadata:
+#   name: mutate-gha-runner-resources
+#   annotations:
+#     policies.kyverno.io/title: Inject GHA Runner Container Resources
+#     policies.kyverno.io/description: Ensures all containers in ARC runner pods have CPU and memory requests and limits.
+# spec:
+#   background: false
+
+#   rules:
+#     - name: add-container-resources
+#       match:
+#         any:
+#           - resources:
+#               kinds:
+#                 - Pod
+#               namespaces:
+#                 - actions-runner-system
+
+#       mutate:
+#         foreach:
+#           - list: "request.object.spec.containers"
+#             patchStrategicMerge:
+#               spec:
+#                 containers:
+#                   - (name): "{{ element.name }}"
+#                     resources:
+#                       requests:
+#                         cpu: "100m"
+#                         memory: "128Mi"
+#                       limits:
+#                         cpu: "500m"
+#                         memory: "512Mi"

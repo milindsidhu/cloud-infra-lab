@@ -1,0 +1,116 @@
+###### Requirements
+# it requires Cert-Manager, install it using the application specified in the cert-manager.yml in this directory.
+
+
+###### secret
+kubectl create secret generic controller-manager \
+  -n actions-runner-system \
+  --from-literal=github_token=<YOUR_PAT>
+
+
+###### argocd app
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: actions-runner-controller
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/milindsidhu/Projects.git
+    targetRevision: dev/MS
+    path: HelmCharts/live/github-action-runner-controller
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: actions-runner-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+
+
+########### runner ##########
+
+cat <<EOF | kubectl apply -f -
+apiVersion: actions.summerwind.dev/v1alpha1
+kind: RunnerDeployment
+metadata:
+  name: repo-runners
+  namespace: actions-runner-system
+
+spec:
+  replicas: 1
+
+  template:
+    metadata:
+      labels:
+        app: gha-runner
+        env: prod
+
+    spec:
+      repository: milindsidhu/Projects
+
+      imagePullSecrets:
+        - name: my-registry-secret
+
+      nodeSelector:
+        kubernetes.io/hostname: linux-master
+
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+
+      containers:
+        - name: runner
+          image: milindsidhu/actions-runner-kics:v2.1.20
+          imagePullPolicy: IfNotPresent
+
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+EOF
+
+
+####### Add HPA for the runner deployment
+
+cat <<EOF | kubectl apply -f -
+apiVersion: actions.summerwind.dev/v1alpha1
+kind: HorizontalRunnerAutoscaler
+
+metadata:
+  name: repo-runners-autoscaler
+  namespace: actions-runner-system
+
+spec:
+  scaleTargetRef:
+    kind: RunnerDeployment
+    name: repo-runners
+
+  minReplicas: 1
+  maxReplicas: 5
+
+  scaleDownDelaySecondsAfterScaleOut: 300
+
+  metrics:
+    - type: TotalNumberOfQueuedAndInProgressWorkflowRuns
+      repositoryNames:
+        - milindsidhu/Projects
+EOF

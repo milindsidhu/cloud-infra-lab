@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "splunk-lab.fullname" . }}-generator
+  labels:
+    {{- include "splunk-lab.labels" . | nindent 4 }}
+    app.kubernetes.io/component: load-generator
+spec:
+  replicas: {{ .Values.loadGenerator.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: load-generator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: load-generator
+    spec:
+      containers:
+        - name: load-generator
+          image: {{ include "splunk-lab.generatorImage" . }}
+          imagePullPolicy: {{ .Values.loadGenerator.image.pullPolicy }}
+          env:
+            - name: TARGET_URL
+              value: "http://{{ include "splunk-lab.fullname" . }}-target:{{ .Values.targetApp.service.port }}"
+          ports:
+            - containerPort: 8001
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.loadGenerator.resources | nindent 12 }}

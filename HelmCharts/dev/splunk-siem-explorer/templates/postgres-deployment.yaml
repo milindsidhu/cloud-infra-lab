@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "splunk-siem-explorer.fullname" . }}-postgres
+  labels:
+    {{- include "splunk-siem-explorer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: postgresql
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: postgresql
+    spec:
+      containers:
+        - name: postgres
+          image: {{ include "splunk-siem-explorer.postgresImage" . }}
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.postgresql.database }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgresql.username }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "splunk-siem-explorer.fullname" . }}-secret
+                  key: postgres-password
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.postgresql.username | quote }}, "-d", {{ .Values.postgresql.database | quote }}]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.postgresql.username | quote }}, "-d", {{ .Values.postgresql.database | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.postgresql.resources | nindent 12 }}
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-data
+          {{- if .Values.postgresql.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "splunk-siem-explorer.fullname" . }}-postgres-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
