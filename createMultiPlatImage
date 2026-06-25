@@ -1,8 +1,101 @@
-for linux/amd64
+# Multi-Platform Docker Image Builds
 
+Build Docker images that run on multiple CPU architectures using `docker buildx`.
+
+---
+
+## Prerequisites
+
+### Enable buildx
+
+`buildx` is included with Docker Desktop by default. On Linux, verify it's available:
+
+```bash
+docker buildx version
+```
+
+### Create and use a builder instance
+
+The default builder doesn't support multi-platform builds. Create one that does:
+
+```bash
+docker buildx create --name multiplatform-builder --use
+docker buildx inspect --bootstrap
+```
+
+---
+
+## Build Commands
+
+### Single platform — linux/amd64
+
+```bash
 docker buildx build --platform linux/amd64 -t <your-image-name> .
+```
 
-for both amd64 and arm64
+### Multi-platform — amd64 + arm64
 
+```bash
 docker buildx build --platform linux/amd64,linux/arm64 -t <your-image-name> .
+```
 
+---
+
+## Push to Registry
+
+Multi-platform images must be pushed to a registry — they cannot be loaded into the local Docker daemon directly.
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t <your-dockerhub-username>/<your-image-name>:<tag> \
+  --push \
+  .
+```
+
+### Load single-platform image locally (no push)
+
+```bash
+docker buildx build \
+  --platform linux/amd64 \
+  -t <your-image-name>:<tag> \
+  --load \
+  .
+```
+
+> `--load` only works with a single platform. Use `--push` for multi-platform.
+
+---
+
+## Verify the Image Manifest
+
+After pushing, confirm both platforms are present:
+
+```bash
+docker buildx imagetools inspect <your-dockerhub-username>/<your-image-name>:<tag>
+```
+
+Expected output will show both:
+```
+Platform: linux/amd64
+Platform: linux/arm64
+```
+
+---
+
+## Common Platforms
+
+| Platform | Use case |
+|---|---|
+| `linux/amd64` | Standard cloud VMs, most CI runners |
+| `linux/arm64` | Apple Silicon (M1/M2), AWS Graviton, Raspberry Pi 4 |
+| `linux/arm/v7` | Raspberry Pi 3 and older ARM devices |
+
+---
+
+## Notes
+
+- Multi-platform builds use QEMU emulation for cross-architecture compilation — builds may be slower than native
+- Always tag images with a version (`v1.0.0`) in addition to `latest`
+- If your base image doesn't support a platform, the build will fail — check the base image manifest first
+EOF
