@@ -1,4 +1,41 @@
 # ──────────────────────────────────────────────────────────────────
+# GitOps provider-specific annotations for the optional patch Job.
+#
+# By default, no GitOps annotations are applied, making the chart
+# compatible with plain Helm, Helmfile, FluxCD, Terraform Helm
+# Provider, and other deployment methods.
+#
+# To enable provider-specific annotations, set:
+#
+#   gitops:
+#     provider: <provider-name>
+#
+# Supported providers are defined below. Additional providers may
+# be added by extending this map without modifying the chart
+# templates.
+# ──────────────────────────────────────────────────────────────────
+gitops:
+  # Active GitOps provider.
+  # Supported values:
+  #   none    - Do not apply any annotations (default)
+  #   argocd  - Apply ArgoCD hook annotations
+  #   fleet   - Apply Rancher Fleet annotations
+  #   custom  - Apply user-defined annotations below
+  provider: none
+
+  providers:
+    argocd:
+      argocd.argoproj.io/hook: PostSync
+      argocd.argoproj.io/hook-delete-policy: HookSucceeded
+      argocd.argoproj.io/sync-wave: "1"
+
+    fleet:
+      fleet.cattle.io/sync: "true"
+
+    custom:
+      foo.example.com/bar: "baz"
+      
+# ──────────────────────────────────────────────────────────────────
 # Three categories of managed namespaces. Every namespace listed
 # anywhere below gets policy-scope=enforced, so require-labels and
 # require-resource-limits ALWAYS apply — there is no "infra exempt

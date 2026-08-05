@@ -29,10 +29,12 @@ kind: Job
 metadata:
   name: patch-docker-secret-annotation
   namespace: default
+  {{- if ne .Values.gitops.provider "none" }}
   annotations:
-    argocd.argoproj.io/hook: PostSync
-    argocd.argoproj.io/hook-delete-policy: HookSucceeded
-    argocd.argoproj.io/sync-wave: '1'
+    {{- range $key, $value := index .Values.gitops.providers .Values.gitops.provider }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+  {{- end }}
 spec:
   template:
     spec:
