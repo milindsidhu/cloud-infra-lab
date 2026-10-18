@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/milindsidhu/Projects.git
-    targetRevision: dev/MS
+    targetRevision: main
     path: HelmCharts/live/kyvernoPolicies
   destination:
     server: https://kubernetes.default.svc

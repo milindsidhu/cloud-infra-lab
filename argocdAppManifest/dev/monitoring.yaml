@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/milindsidhu/Projects.git
-    targetRevision: dev/MS
+    targetRevision: main
     path: HelmCharts/live/monitoring
     helm:
       releaseName: monitoring

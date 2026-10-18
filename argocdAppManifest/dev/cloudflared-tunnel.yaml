@@ -12,7 +12,7 @@ spec:
   source:
     path: HelmCharts/live/cloud-flared-new
     repoURL: https://github.com/milindsidhu/Projects.git
-    targetRevision: dev/MS
+    targetRevision: main
     helm:
       releaseName: cloudflared
       valueFiles:

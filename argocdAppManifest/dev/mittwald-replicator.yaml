@@ -9,7 +9,7 @@ spec:
   source:
     repoURL: https://github.com/milindsidhu/Projects.git
     path: HelmCharts/live/mittwald-k8s-replicator
-    targetRevision: dev/MS
+    targetRevision: main
     helm:
       valueFiles:
         - values.yaml

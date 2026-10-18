@@ -17,7 +17,7 @@ spec:
       sources:
         - repoURL: https://github.com/milindsidhu/Projects.git
           path: argocdAppManifest/dev/eso-applicationset/charts/eso-operator
-          targetRevision: dev/MS
+          targetRevision: main
           helm:
             values: |
               external-secrets:
@@ -25,7 +25,7 @@ spec:
 
         - repoURL: https://github.com/milindsidhu/Projects.git
           path: argocdAppManifest/dev/eso-applicationset/charts/eso-config
-          targetRevision: dev/MS
+          targetRevision: main
           helm:
             parameters:
               - name: aws.credentials.accessKey

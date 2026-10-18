@@ -11,7 +11,7 @@ spec:
   source:
     path: HelmCharts/live/mlflow
     repoURL: https://github.com/milindsidhu/Projects.git
-    targetRevision: dev/MS
+    targetRevision: main
     helm:
       releaseName: mlflow
       valueFiles:
