@@ -2,6 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: longhorn
+  namespace: argocd
 spec:
   destination:
     namespace: longhorn-system
@@ -9,8 +10,7 @@ spec:
   source:
     path: HelmCharts/live/longhorn
     repoURL: https://github.com/milindsidhu/Projects.git
-    targetRevision: dev/MS
-  sources: []
+    targetRevision: main
   project: default
   syncPolicy:
     automated:
@@ -18,18 +18,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-destination:
-  namespace: longhorn-system
-  server: https://kubernetes.default.svc
-source:
-  path: HelmCharts/live/longhorn
-  repoURL: https://github.com/milindsidhu/Projects.git
-  targetRevision: dev/MS
-sources: []
-project: default
-syncPolicy:
-  automated:
-    prune: true
-    selfHeal: true
-  syncOptions:
-    - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+      - PruneLast=true
+  revisionHistoryLimit: 5

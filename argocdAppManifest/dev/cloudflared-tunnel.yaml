@@ -17,7 +17,6 @@ spec:
       releaseName: cloudflared
       valueFiles:
         - values.yaml
-  sources: []
   project: default
   syncPolicy:
     automated:
@@ -25,6 +24,9 @@ spec:
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+      - PruneLast=true
+  revisionHistoryLimit: 5
   ignoreDifferences:
     - group: ''
       kind: Secret

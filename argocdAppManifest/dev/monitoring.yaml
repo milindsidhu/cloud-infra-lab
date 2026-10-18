@@ -23,7 +23,11 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
+      - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+      - PruneLast=true
+  revisionHistoryLimit: 5
   ignoreDifferences:
     - group: external-secrets.io
       kind: ExternalSecret
