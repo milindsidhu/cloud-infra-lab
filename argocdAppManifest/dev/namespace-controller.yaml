@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: namespace-controller
+  name: namespace-controller-dev
   namespace: argocd
 spec:
   project: default
@@ -9,7 +9,7 @@ spec:
   source:
     repoURL: https://github.com/milindsidhu/Projects.git
     path: HelmCharts/live/namespaceController
-    targetRevision: dev/MS
+    targetRevision: main
 
   destination:
     server: https://kubernetes.default.svc
