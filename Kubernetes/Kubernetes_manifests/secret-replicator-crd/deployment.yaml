@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secret-replicator
+  namespace: lang-app
+  labels:
+    app: secret-replicator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: secret-replicator
+  template:
+    metadata:
+      labels:
+        app: secret-replicator
+    spec:
+      serviceAccountName: sa-secret-replicator
+      containers:
+        - name: operator
+          image: secret-replicator:latest
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
