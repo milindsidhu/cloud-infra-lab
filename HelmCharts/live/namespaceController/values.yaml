@@ -28,12 +28,30 @@ regulatedNoSANamespaces:
   - istio-system
 
 # ──────────────────────────────────────────────────────────────────
+# Central namespace that hosts the shared image-pull secret. It is
+# created FIRST (sync-wave -2), before any managed namespace, so the
+# secret can be placed there and the mittwald replicator can fan it
+# out to every managed namespace afterwards.
+# ──────────────────────────────────────────────────────────────────
+centralSecretNamespace:
+  name: registry-secrets
+  secretName: my-registry-secret
+  # Source of truth for the shared pull secret. Do NOT commit real
+  # credentials — override via --set or external-secrets. To supply a
+  # ready-made .dockerconfigjson instead, set dockerConfigJson below.
+  dockerServer: https://index.docker.io/v1/
+  dockerUsername: changeme
+  dockerPassword: changeme
+  dockerEmail: ""
+  dockerConfigJson: ""   # raw JSON string; overrides the fields above
+
+# ──────────────────────────────────────────────────────────────────
 # Reusable rule sets for appNamespaces below.
 # ──────────────────────────────────────────────────────────────────
 roleRuleSets:
   standardApp: &standardApp
     - apiGroups: [""]
-      resources: ["pods", "pods/log", "jobs", "configmaps", "secrets"]
+      resources: ["pods", "pods/log", "pods/exec", "jobs", "configmaps", "secrets", "events"]
       verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
     - apiGroups: ["apps"]
       resources: ["deployments"]
@@ -44,35 +62,63 @@ roleRuleSets:
     - apiGroups: ["networking.k8s.io"]
       resources: ["ingresses"]
       verbs: ["get", "list", "create", "update", "delete"]
-    - apiGroups: [""]
-      resources: ["secrets", "events"]
-      verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+# ──────────────────────────────────────────────────────────────────
+# Reusable CLUSTER-scoped rule sets (per app, for CRDs and other
+# cluster resources). Rendered as ClusterRole cr-<namespace> +
+# ClusterRoleBinding to sa-<namespace>. Narrow with resourceNames
+# whenever possible — a namespaced Role cannot grant these.
+# Replace the resourceNames below with the real CRDs each app ships.
+# ──────────────────────────────────────────────────────────────────
+clusterRoleRuleSets:
+  # An empty list anchor renders NO ClusterRole — fill in real rules
+  # when the app actually ships CRDs. WARNING: an empty resourceNames
+  # list means ALL resources of that type, so never write
+  # resourceNames: [] inside a rule — either list the CRD names or
+  # leave the whole rule set empty.
+  langAppCRDs: &langAppCRDs
     - apiGroups: ["apiextensions.k8s.io"]
       resources: ["customresourcedefinitions"]
+      resourceNames: ["secretreplicators.kopf.dev"]
       verbs: ["get", "list", "watch"]
+  mlflowCRDs: &mlflowCRDs []
+  cloudflaredCRDs: &cloudflaredCRDs []
 
 # ──────────────────────────────────────────────────────────────────
 # appNamespaces: full automated treatment — Namespace + label +
 # sa-<namespace> ServiceAccount + tailored Role + RoleBinding.
 # These ARE in scope for require-namespace-service-account.
+#
+# clusterRoleRules (optional): references one of the anchors above
+# (or inline rules). Creates ClusterRole cr-<namespace> plus
+# ClusterRoleBinding to sa-<namespace>.
 # ──────────────────────────────────────────────────────────────────
 appNamespaces:
   mlflow:
     roleRules: *standardApp
+    clusterRoleRules: *mlflowCRDs
   cloudflared:
     roleRules: *standardApp
-
-  # lang-app:
-  #   roleRules: *standardApp
+    clusterRoleRules: *cloudflaredCRDs
+  lang-app:
+    roleRules: *standardApp
+    clusterRoleRules: *langAppCRDs
 
 # ──────────────────────────────────────────────────────────────────
-# Post-sync job: patches the shared image-pull secret in `default`
-# with a replicator annotation listing every managed namespace
-# (regulatedNoSANamespaces + appNamespaces combined), so
-# mittwald-replicator fans it out to all of them.
+# Ordering (ArgoCD sync-waves + hooks):
+#   -2  centralSecretNamespace namespace
+#   -1  sa-secret-patcher SA + Role + RoleBinding + the docker-registry
+#       Secret itself (templates/secret.yaml)
+#   1+  PostSync patch-docker-secret-annotation Job — patches the
+#       secret's replicator annotation with every managed namespace
+#       (regulatedNoSANamespaces + appNamespaces) so mittwald-replicator
+#       fans it out. Waits up to 5 min if the secret is absent.
+# Runs under sa-secret-patcher in the central namespace — never the
+# default ServiceAccount.
 # Note: cert-manager and cloudflared are NOT managed by this chart
 # (they're excluded at the Kyverno level entirely) — add them here
 # manually if the secret also needs to land there.
 # ──────────────────────────────────────────────────────────────────
 createPatchJob:
   enabled: true
+  image: bitnami/kubectl:latest

@@ -1,0 +1,112 @@
+# {{- if .Values.secretReplicator.enabled }}
+# ---
+# # Cluster-scoped CRD for SecretReplicator
+# apiVersion: apiextensions.k8s.io/v1
+# kind: CustomResourceDefinition
+# metadata:
+#   name: {{ .Values.secretReplicator.crd.name }}
+# spec:
+#   group: {{ .Values.secretReplicator.crd.group }}
+#   names:
+#     plural: {{ .Values.secretReplicator.crd.plural }}
+#     singular: {{ .Values.secretReplicator.crd.singular }}
+#     kind: {{ .Values.secretReplicator.crd.kind }}
+#     shortNames:
+# {{- range .Values.secretReplicator.crd.shortNames }}
+#       - {{ . }}
+# {{- end }}
+#   scope: Cluster
+#   versions:
+#     - name: {{ .Values.secretReplicator.crd.version }}
+#       served: true
+#       storage: true
+#       schema:
+#         openAPIV3Schema:
+#           type: object
+#           properties:
+#             spec:
+#               type: object
+#               required:
+#                 - sourceNamespace
+#                 - sourceSecretName
+#                 - targetNamespaces
+#               properties:
+#                 sourceNamespace:
+#                   type: string
+#                 sourceSecretName:
+#                   type: string
+#                 targetNamespaces:
+#                   type: array
+#                   items:
+#                     type: string
+
+# ---
+# # Operator Deployment running cluster-wide in a single namespace
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: {{ .Values.secretReplicator.deployment.name }}
+#   namespace: {{ .Values.secretReplicator.deployment.namespace | default "secret-replicator" }}
+# spec:
+#   replicas: {{ .Values.secretReplicator.deployment.replicas }}
+#   selector:
+#     matchLabels:
+#       app: {{ .Values.secretReplicator.deployment.labels.app }}
+#   template:
+#     metadata:
+#       labels:
+#         app: {{ .Values.secretReplicator.deployment.labels.app }}
+#     spec:
+#       serviceAccountName: {{ .Values.secretReplicator.deployment.serviceAccountName | default "secret-replicator-sa" }}
+#       terminationGracePeriodSeconds: 400
+#       imagePullSecrets:
+#         - name: {{ .Values.secretReplicator.deployment.image.pullSecretName | default "docker-registry-secret" }}
+#       volumes:
+#         - name: log-volume
+#           hostPath:
+#             path: /var/log/secretreplicator
+#             type: DirectoryOrCreate
+#       containers:
+#         - name: operator
+#           image: {{ printf "%s:%s" .Values.secretReplicator.deployment.image.repository .Values.secretReplicator.deployment.image.tag }}
+#           command: ["kopf", "run", "--standalone", "operator.py"]
+#           volumeMounts:
+#             - name: log-volume
+#               mountPath: /logs
+#           imagePullPolicy: {{ .Values.secretReplicator.deployment.image.pullPolicy }}
+#           lifecycle:
+#             preStop:
+#               exec:
+#                 command:
+#                   - /bin/sh
+#                   - -c
+#                   - |
+#                     echo "Removing finalizer from SecretReplicator..."
+#                     kubectl patch secretreplicator {{ .Values.secretReplicator.secretReplicatorCR.name }} -n {{ .Values.secretReplicator.deployment.namespace | default "secret-replicator" }} --type=merge -p '{"metadata":{"finalizers":[]}}'
+#                     echo "done"
+#                     sleep 120
+#           env:
+#             - name: NAMESPACE
+#               valueFrom:
+#                 fieldRef:
+#                   fieldPath: metadata.namespace
+#             - name: SECRET_REPLICATOR_NAME
+#               value: {{ .Values.secretReplicator.secretReplicatorCR.name }}
+
+# ---
+# # Cluster-scoped SecretReplicator Custom Resource
+# apiVersion: {{ .Values.secretReplicator.crd.group }}/{{ .Values.secretReplicator.crd.version }}
+# kind: {{ .Values.secretReplicator.crd.kind }}
+# metadata:
+#   name: {{ .Values.secretReplicator.secretReplicatorCR.name }}
+#   annotations:
+#     argocd.argoproj.io/sync-wave: "1"
+# spec:
+#   sourceNamespace: {{ .Values.secretReplicator.secretReplicatorCR.spec.sourceNamespace }}
+#   sourceSecretName: {{ .Values.secretReplicator.secretReplicatorCR.spec.sourceSecretName }}
+#   targetNamespaces:
+# {{- range .Values.namespaces }}
+#     - {{ . }}
+# {{- end }}
+# ---
+# {{- end }}

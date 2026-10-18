@@ -7,17 +7,17 @@ imagePullSecret: my-registry-secret
 tunnels:
   k8sApi:
     enabled: true
-    tunnelID: ab5aade4-71e7-416d-aa81-5cc22691d386
-    hostname: k8s-api.solidshop.in
+    tunnelID: <CLOUDFLARE_TUNNEL_ID>
+    hostname: k8s-api.<DOMAIN>
     service: https://kubernetes.default.svc.cluster.local:443
     noTLSVerify: true
     secretName: tunnel-credentials
 
   ssh:
     enabled: true
-    tunnelID: 9d2542cb-1cc8-4df5-9dbf-b2da3458a10d
-    hostname: sshmaster.solidshop.in
-    service: ssh://192.168.1.18:22
+    tunnelID: <CLOUDFLARE_TUNNEL_ID>
+    hostname: sshmaster.<DOMAIN>
+    service: ssh://<SSH_HOST>:22
     noTLSVerify: false
     secretName: ssh-tunnel-credentials
 

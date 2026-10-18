@@ -29,7 +29,7 @@ kube-prometheus-stack:
         cpu: "300m"
     grafana.ini:
       server:
-        root_url: https://grafana.solidshop.in
+        root_url: https://grafana.<DOMAIN>
       auth:
         disable_login_form: false
       security:

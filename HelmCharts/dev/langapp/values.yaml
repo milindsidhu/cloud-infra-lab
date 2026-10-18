@@ -41,7 +41,7 @@ runnerApi:
     enabled: true
     cloudflare:
       proxied: true
-      target: 787c8a46-0ffa-4ae2-8a98-5c0c57164257.cfargotunnel.com
+      target: <CLOUDFLARE_TUNNEL_ID>.cfargotunnel.com
 
 # ServiceAccount configuration is done as sa-{{ $ns }} inside manifests
 # don't declare serviceAccount here, it will be created automatically

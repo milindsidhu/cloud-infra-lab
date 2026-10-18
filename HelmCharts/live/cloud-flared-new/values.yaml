@@ -14,7 +14,7 @@ tunnels:
   k8sApi:
     enabled: true
     tunnelName: k8s-api-tunnel
-    hostname: k8s-api.solidshop.in
+    hostname: k8s-api.<DOMAIN>
     service: https://kubernetes.default.svc.cluster.local:443
     noTLSVerify: true
     secretName: tunnel-credentials
@@ -23,8 +23,8 @@ tunnels:
   ssh:
     enabled: true
     tunnelName: ssh-tunnel
-    hostname: sshmaster.solidshop.in
-    service: ssh://192.168.1.18:22
+    hostname: sshmaster.<DOMAIN>
+    service: ssh://<SSH_HOST>:22
     noTLSVerify: false
     secretName: ssh-tunnel-credentials
     configMapName: ssh-cloudflared-config
@@ -32,16 +32,16 @@ tunnels:
   argocd:
     enabled: true
     tunnelName: argocd-tunnel
-    hostname: argocd.solidshop.in
+    hostname: argocd.<DOMAIN>
     service: http://argocd-server.argocd.svc.cluster.local:80
-    noTLSVerify: false 
+    noTLSVerify: false
     secretName: argocd-tunnel-credentials
     configMapName: argocd-cloudflared-config
 
   grafana:
     enabled: true
     tunnelName: grafana-tunnel
-    hostname: grafana.solidshop.in
+    hostname: grafana.<DOMAIN>
     service: http://monitoring-grafana.monitoring.svc.cluster.local:80
     noTLSVerify: false
     secretName: grafana-tunnel-credentials
@@ -50,7 +50,7 @@ tunnels:
   mlflow:
     enabled: false
     tunnelName: mlflow-tunnel
-    hostname: mlflow.solidshop.in
+    hostname: mlflow.<DOMAIN>
     service: http://mlflow.mlflow.svc.cluster.local:5000
     noTLSVerify: false
     secretName: mlflow-tunnel-credentials
@@ -59,7 +59,7 @@ tunnels:
   minio:
     enabled: false
     tunnelName: minio-tunnel
-    hostname: minio.solidshop.in
+    hostname: minio.<DOMAIN>
     service: http://mlflow-minio-console.mlflow.svc.cluster.local:9001
     noTLSVerify: false
     secretName: minio-tunnel-credentials
@@ -68,7 +68,7 @@ tunnels:
   minioApi:
     enabled: false
     tunnelName: minio-api-tunnel
-    hostname: s3.solidshop.in
+    hostname: s3.<DOMAIN>
     service: http://mlflow-minio.mlflow.svc.cluster.local:9000
     noTLSVerify: false
     secretName: minio-api-tunnel-credentials
