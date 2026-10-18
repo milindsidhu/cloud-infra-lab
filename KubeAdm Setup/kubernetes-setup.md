@@ -14,7 +14,7 @@
 ```bash
 KUBERNETES_VERSION=v1.32
 CRIO_VERSION=v1.32
-POD_CIDR="10.1.0.0/16"
+POD_CIDR="10.1.0.0/16"   # must NOT overlap the bridged LAN subnet (usually 192.168.x.x)
 CLUSTER_IF="enp0s3"   # NAT Network interface — unique IP per VM, internet + cluster traffic
 ```
 
@@ -80,7 +80,7 @@ sudo ufw allow 10257/tcp         # kube-controller-manager
 sudo ufw allow 30000:32767/tcp   # NodePort services
 
 # Allow all pod CIDR traffic across nodes
-sudo ufw allow from 10.1.0.0/16
+sudo ufw allow from "$POD_CIDR"
 
 sudo ufw reload
 ```
@@ -199,69 +199,16 @@ chmod 600 ~/join-command.sh
 echo "--- Share ~/join-command.sh with each worker node ---"
 ```
 
-> **Optional — single node cluster:** If running without dedicated workers, untaint the master so pods can schedule on it:
-> ```bash
-> kubectl taint nodes --all node-role.kubernetes.io/control-plane-
-> ```
-
 ---
 
-## Step 8 — Install CNI [MASTER]
+## Step 8 — Fix CoreDNS for External DNS [MASTER]
 
-> **Install CNI before joining workers or fixing CoreDNS.** CoreDNS pods will stay in
-> `Pending` until a CNI is present — patching or restarting them before this point has no effect.
-
-### Option A — Calico
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.30.0/manifests/calico.yaml
-
-# Wait for all Calico pods to be Running before continuing
-kubectl -n kube-system wait --for=condition=Ready pod -l k8s-app=calico-node --timeout=120s
-```
-
-### Option B — Cilium
-
-```bash
-CILIUM_CLI_VERSION=$(curl -fsSL https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
-CLI_ARCH=amd64
-[[ "$(uname -m)" == "aarch64" ]] && CLI_ARCH=arm64
-
-curl -fsSL --remote-name-all \
-  https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
-sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
-sudo tar -xzf cilium-linux-${CLI_ARCH}.tar.gz -C /usr/local/bin
-rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
-
-cilium install --version 1.17.5
-cilium status --wait
-```
-
----
-
-## Step 9 — Join Worker Nodes [WORKER]
-
-Copy `~/join-command.sh` from the master to each worker, then run:
-
-```bash
-# On each worker node (run Steps 1–6 first)
-sudo bash ~/join-command.sh --cri-socket=unix:///var/run/crio/crio.sock
-```
-
-Verify from the master:
-
-```bash
-kubectl get nodes -o wide
-# All nodes should show Ready and their IPs in the IP column
-```
-
----
-
-## Step 10 — Fix CoreDNS for External DNS [MASTER]
-
-> **Do this after CNI is installed and all nodes are Ready.** CoreDNS pods must be Running
-> before the patch and rollout restart will take effect. Pods inherit DNS from CoreDNS —
-> if CoreDNS can't resolve `github.com`, ArgoCD can't reach GitHub even if the node can.
+> **Do this before installing any workloads.** Pods inherit DNS from CoreDNS.
+> If CoreDNS can't resolve `github.com`, ArgoCD can't reach GitHub — even if the node can.
+>
+> **Note:** `forward . 8.8.8.8 1.1.1.1` hardcodes public resolvers and bypasses
+> `resolv.conf`. On a VPN/corporate network, replace them with your upstream DNS
+> (e.g. `forward . 10.0.2.3` or your resolver IP) or internal names won't resolve.
 
 ```bash
 kubectl -n kube-system patch configmap coredns --type merge -p "$(cat <<'EOF'
@@ -287,7 +234,45 @@ kubectl run dns-test --image=busybox:1.28 --rm -it --restart=Never \
 
 ---
 
-## Step 11 — Verify Pod Masquerade (CNI Internet Access) [MASTER]
+## Step 9 — Install CNI (choose one) [MASTER]
+
+### Option A — Calico
+
+> Stock `calico.yaml` defaults its IP pool to `192.168.0.0/16` — which would
+> collide with the bridged LAN adapter's subnet. The env patch below pins
+> Calico's pool to `POD_CIDR` (`10.1.0.0/16`) so it stays off the LAN range.
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.30.0/manifests/calico.yaml
+
+# Patch the IP pool to match POD_CIDR — REQUIRED, do not skip
+kubectl set env daemonset/calico-node -n kube-system \
+  CALICO_IPV4POOL_CIDR="10.1.0.0/16"
+
+# Wait for all Calico pods to be Running before continuing
+kubectl -n kube-system wait --for=condition=Ready pod -l k8s-app=calico-node --timeout=120s
+```
+
+### Option B — Cilium
+
+```bash
+CILIUM_CLI_VERSION=$(curl -fsSL https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
+CLI_ARCH=amd64
+[[ "$(uname -m)" == "aarch64" ]] && CLI_ARCH=arm64
+
+curl -fsSL --remote-name-all \
+  https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
+sudo tar -xzf cilium-linux-${CLI_ARCH}.tar.gz -C /usr/local/bin
+rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+
+cilium install --version 1.17.5
+cilium status --wait
+```
+
+---
+
+## Step 10 — Verify Pod Masquerade (CNI Internet Access) [MASTER]
 
 > Pods must SNAT through the NAT interface to reach the internet. Calico/Cilium handle
 > this automatically, but verify before installing workloads.
@@ -302,7 +287,25 @@ kubectl run internet-test --image=curlimages/curl --rm -it --restart=Never \
 # Expected: HTTP/2 200
 
 # If the above fails but node curl works, add masquerade manually:
-# sudo iptables -t nat -A POSTROUTING -s 10.1.0.0/16 ! -d 10.1.0.0/16 -o "$CLUSTER_IF" -j MASQUERADE
+# sudo iptables -t nat -A POSTROUTING -s "$POD_CIDR" ! -d "$POD_CIDR" -o "$CLUSTER_IF" -j MASQUERADE
+```
+
+---
+
+## Step 11 — Join Worker Nodes [WORKER]
+
+Copy `~/join-command.sh` from the master to each worker, then run:
+
+```bash
+# On each worker node (run Step 1–6 first)
+sudo bash ~/join-command.sh --cri-socket=unix:///var/run/crio/crio.sock
+```
+
+Verify from the master:
+
+```bash
+kubectl get nodes -o wide
+# All nodes should show Ready and their bridge IPs in the IP column
 ```
 
 ---
@@ -312,6 +315,7 @@ kubectl run internet-test --image=curlimages/curl --rm -it --restart=Never \
 ```bash
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
+# Patch args without interactive editing
 kubectl patch deployment metrics-server -n kube-system --type=json -p='[
   {
     "op": "add",
@@ -336,7 +340,7 @@ kubectl top node
 ## Step 13 — Default Storage Class [MASTER]
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.28/deploy/local-path-storage.yaml
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
 
 kubectl patch storageclass local-path \
   -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
@@ -353,6 +357,28 @@ kubectl get storageclass
 kubectl get nodes -o wide
 kubectl get po -n kube-system
 kubectl top node
+```
+
+---
+
+## Optional — Single-Node Cluster
+
+If the master doubles as your only node (common for a VirtualBox lab), remove
+the control-plane taint so workloads can schedule on it:
+
+```bash
+kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+```
+
+---
+
+## Optional — etcd Snapshot (disaster recovery)
+
+Take a point-in-time snapshot of the cluster state after a successful setup:
+
+```bash
+sudo crictl exec -it "$(sudo crictl ps --name etcd -q | head -1)" \
+  etcdctl snapshot save /var/lib/etcd/snapshot.db
 ```
 
 ---
