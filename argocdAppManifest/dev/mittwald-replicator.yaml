@@ -19,11 +19,12 @@ spec:
 
   syncPolicy:
     automated:
-      enabled: true
       prune: true
       selfHeal: true
 
     syncOptions:
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+      - PruneLast=true
 
   revisionHistoryLimit: 5

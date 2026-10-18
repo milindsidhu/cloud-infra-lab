@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/milindsidhu/Projects.git
     targetRevision: dev/MS
-    path: HelmCharts/live/kyvernoPolicies 
+    path: HelmCharts/live/kyvernoPolicies
   destination:
     server: https://kubernetes.default.svc
     namespace: kyverno
@@ -22,7 +22,9 @@ spec:
   syncPolicy:
     automated:
       prune: true
-      selfHeal: false
+      selfHeal: true
     syncOptions:
-      - RespectIgnoreDifferences=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+      - PruneLast=true
+  revisionHistoryLimit: 5

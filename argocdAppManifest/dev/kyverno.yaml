@@ -20,9 +20,10 @@ spec:
       prune: true
       selfHeal: false
     syncOptions:
-      - ServerSideApply=true   # important for Kyverno CRDs
+      - ServerSideApply=true
       - RespectIgnoreDifferences=true
       - PruneLast=true
+  revisionHistoryLimit: 5
   ignoreDifferences:
     - group: apiextensions.k8s.io
       kind: CustomResourceDefinition

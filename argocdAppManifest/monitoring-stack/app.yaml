@@ -8,11 +8,10 @@ spec:
   source:
     repoURL: https://github.com/milindsidhu/Projects.git
     targetRevision: main
-    path: HelmCharts/live/monitoring-stack
+    path: HelmCharts/live/monitoring
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
-    targetRevision: main
   sources: []
   syncPolicy:
     automated:
@@ -20,3 +19,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+      - PruneLast=true
+  revisionHistoryLimit: 5

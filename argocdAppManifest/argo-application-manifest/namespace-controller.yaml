@@ -4,7 +4,7 @@ metadata:
   name: namespace-controller
 spec:
   destination:
-    namespace: lang-app
+    namespace: namespace-controller
     server: https://kubernetes.default.svc
   source:
     path: HelmCharts/live/namespaceController
@@ -18,18 +18,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-destination:
-  namespace: lang-app
-  server: https://kubernetes.default.svc
-source:
-  path: HelmCharts/live/namespaceController
-  repoURL: https://github.com/milindsidhu/Projects.git
-  targetRevision: main
-sources: []
-project: default
-syncPolicy:
-  automated:
-    prune: true
-    selfHeal: true
-  syncOptions:
-    - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+      - PruneLast=true
+  revisionHistoryLimit: 5
