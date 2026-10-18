@@ -66,8 +66,8 @@ metadata:
     # cert-manager.io/cluster-issuer: "letsencrypt-prod"
     # nginx.ingress.kubernetes.io/ssl-redirect: "true"
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-    external-dns.alpha.kubernetes.io/hostname: busybox<domain>
-    external-dns.alpha.kubernetes.io/target: edf03371-7be3-4673-aeae-4baf7c76fd57.cfargotunnel.com
+    external-dns.alpha.kubernetes.io/hostname: busybox.<DOMAIN>
+    external-dns.alpha.kubernetes.io/target: <CLOUDFLARE_TUNNEL_ID>.cfargotunnel.com
 spec:
   ingressClassName: nginx
   # tls:
