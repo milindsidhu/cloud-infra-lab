@@ -35,6 +35,11 @@ regulatedNoSANamespaces:
 # ──────────────────────────────────────────────────────────────────
 centralSecretNamespace:
   name: registry-secrets
+  # Set to false if the docker-registry Secret is created manually or
+  # by an external-secrets workflow (recommended when creds cannot be
+  # committed to Git). The chart will still create the namespace and
+  # run the annotation patch Job, but it will not render secret.yaml.
+  createSecret: false
   secretName: my-registry-secret
   # Source of truth for the shared pull secret. Do NOT commit real
   # credentials — override via --set or external-secrets. To supply a
@@ -105,6 +110,15 @@ appNamespaces:
     clusterRoleRules: *langAppCRDs
 
 # ──────────────────────────────────────────────────────────────────
+# mittwald kubernetes-replicator dependency. Installed as part of this
+# chart so the central docker-registry Secret can be fanned out to every
+# managed namespace automatically.
+# ──────────────────────────────────────────────────────────────────
+kubernetes-replicator:
+  enabled: true
+  namespaceOverride: mittwald-replicator
+
+# ──────────────────────────────────────────────────────────────────
 # Ordering (ArgoCD sync-waves + hooks):
 #   -2  centralSecretNamespace namespace
 #   -1  sa-secret-patcher SA + Role + RoleBinding + the docker-registry
@@ -121,4 +135,4 @@ appNamespaces:
 # ──────────────────────────────────────────────────────────────────
 createPatchJob:
   enabled: true
-  image: bitnami/kubectl:1.31.0
+  image: bitnami/kubectl:latest
