@@ -17,7 +17,7 @@ spec:
       serviceAccountName: sa-{{ $ns }}
       containers:
         - name: finalizer-remover
-          image: bitnami/kubectl:latest
+          image: bitnami/kubectl:1.35
           command:
             - /bin/sh
             - -c

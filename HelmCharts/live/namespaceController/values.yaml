@@ -135,4 +135,4 @@ kubernetes-replicator:
 # ──────────────────────────────────────────────────────────────────
 createPatchJob:
   enabled: true
-  image: bitnami/kubectl:latest
+  image: bitnami/kubectl:1.35

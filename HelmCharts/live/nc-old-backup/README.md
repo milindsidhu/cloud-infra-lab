@@ -40,8 +40,8 @@ Legacy backup of the original namespace-controller implementation. Kept for refe
 - `templates/dockerSecretReplicator.yaml` — Secret `dockerSecretReplicator`
 - `templates/namespace-serviceAccount.yaml` — ServiceAccount `sa-`
 - `templates/permissions.yaml` — Namespace `sa-`
-- `templates/postsyncJob.yaml` — Job `postsyncJob` (image: `bitnami/kubectl:latest`)
-- `templates/preDeleteFinalizerPatch.yaml` — Job `cleanup-kopf-finalizer-` (image: `bitnami/kubectl:latest`)
+- `templates/postsyncJob.yaml` — Job `postsyncJob` (image: `bitnami/kubectl:1.35`)
+- `templates/preDeleteFinalizerPatch.yaml` — Job `cleanup-kopf-finalizer-` (image: `bitnami/kubectl:1.35`)
 - `templates/readsecretClusterRole.yaml` — Secret `read-secret-clusterrole`
 - `templates/rep2.yaml` — Resource `rep2` (image: `{{ printf`)
 - `templates/role.yaml` — RBAC resource `role-`
@@ -59,12 +59,6 @@ Install or upgrade in a cluster:
 
 ```bash
 helm upgrade --install namespace-rbac . -f values.yaml -n <NAMESPACE> --create-namespace
-```
-
-For wrapper charts that ship vendored `.tgz` dependencies, unpack them first if needed:
-
-```bash
-helm dependency update
 ```
 
 ## Notes
