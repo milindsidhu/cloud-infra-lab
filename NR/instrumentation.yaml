@@ -6,7 +6,7 @@ metadata:
 spec:
   agent:
     language: python
-    image: newrelic/newrelic-python-init:latest
+    image: newrelic/newrelic-python-init:14.0.0.0
   podLabelSelector:
     matchExpressions:
       - key: app

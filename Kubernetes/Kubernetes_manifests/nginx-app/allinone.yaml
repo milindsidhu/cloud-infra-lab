@@ -7,7 +7,8 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx  
+  name: nginx
+  namespace: demo
 spec:
   replicas: 1
   selector:
@@ -18,18 +19,37 @@ spec:
       labels:
         app: nginx
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: nginx
-        image: nginx
+        image: nginx:1.31.7
         ports:
         - containerPort: 80
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "25m"
+          limits:
+            memory: "64Mi"
+            cpu: "100m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
 
 ---
 # create a service
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx  
+  name: nginx
+  namespace: demo
 spec:
   type: ClusterIP
   ports:
@@ -43,6 +63,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ingress-for-ngnix
+  namespace: demo
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"

@@ -1,3 +1,5 @@
+# WARNING: pick a range that does NOT overlap with your DHCP pool or other
+# active devices on the LAN. The range below is an example only.
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:

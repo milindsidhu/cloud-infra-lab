@@ -18,6 +18,8 @@ spec:
       serviceAccountName: sa-secret-replicator
       containers:
         - name: operator
+          # Replace with the pinned registry tag built from Docker-manifests/secret-replicator/
+          # e.g. ghcr.io/milindsidhu/secret-replicator:v1.0.0
           image: secret-replicator:latest
           imagePullPolicy: IfNotPresent
           resources:

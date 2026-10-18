@@ -284,7 +284,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: nginx
+          image: nginx:1.31.7
           env:
             - name: GHUB_TOKEN
               valueFrom:
