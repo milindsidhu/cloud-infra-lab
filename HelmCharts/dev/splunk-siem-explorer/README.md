@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Deploys a **Splunk SIEM explorer** demo application. It consists of a backend API, a frontend UI, and a PostgreSQL database used to store SIEM use-case metadata. The chart is intended for exploring SIEM data correlation, incident workflows, and frontend-to-backend integration patterns.
+Deploys a **Splunk SIEM explorer** demo application. It consists of a backend API, a frontend UI, and a PostgreSQL database used to store SIEM use-case metadata. Intended for exploring SIEM data correlation, incident workflows, and frontend-to-backend integration.
 
 ## Directory Structure
 
@@ -59,6 +59,12 @@ Install or upgrade in a cluster:
 
 ```bash
 helm upgrade --install splunk-siem-explorer . -f values.yaml -n <NAMESPACE> --create-namespace
+```
+
+For wrapper charts that ship vendored `.tgz` dependencies, unpack them first if needed:
+
+```bash
+helm dependency update
 ```
 
 ## Notes

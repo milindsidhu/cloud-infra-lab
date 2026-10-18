@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Wrapper chart for the [Actions Runner Controller (ARC)](https://github.com/actions/actions-runner-controller). ARC provisions self-hosted GitHub Actions runners as Kubernetes pods on demand, allowing CI/CD jobs to run inside the cluster with custom images and resources.
+Wrapper chart for the [Actions Runner Controller (ARC)](https://github.com/actions/actions-runner-controller). Deploys the controller that provisions self-hosted GitHub Actions runners as Kubernetes pods on demand.
 
 ## Directory Structure
 

@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Wrapper chart for the [ExternalDNS](https://kubernetes-sigs.github.io/external-dns/) operator. ExternalDNS synchronizes exposed Kubernetes Services and Ingresses with DNS providers such as Cloudflare. This chart deploys the Bitnami-packaged `external-dns` controller and passes provider configuration through `values.yaml`.
+Wrapper chart for the Bitnami `external-dns` operator. Watches Kubernetes Ingress and Service resources and automatically creates/updates DNS records in Cloudflare based on `external-dns.alpha.kubernetes.io/*` annotations.
 
 ## Directory Structure
 

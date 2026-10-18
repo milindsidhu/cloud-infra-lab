@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Wrapper chart for the [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack). This deploys Prometheus for metrics collection and storage, Grafana for visualization dashboards, and Alertmanager for alert routing. The chart also creates an ExternalSecret to inject the Grafana admin password from an external secrets manager.
+Wrapper chart for a Prometheus/Grafana monitoring stack. Deploys Grafana with an ExternalSecret for admin credentials, plus Prometheus and Alertmanager components. Provides cluster-level observability dashboards and alerting.
 
 ## Directory Structure
 

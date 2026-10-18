@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CodeLive - Online Code Runner</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel-light: #334155;
+      --accent: #22c55e;
+      --accent-hover: #16a34a;
+      --danger: #ef4444;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 24px;
+      gap: 20px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--accent), #3b82f6);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .brand h1 {
+      font-size: 22px;
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .brand span {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    select {
+      appearance: none;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--panel-light);
+      padding: 10px 36px 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.05s ease, filter 0.15s ease;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    #run-btn {
+      background: linear-gradient(135deg, var(--accent), #15803d);
+      color: white;
+      box-shadow: 0 4px 14px rgba(34, 197, 94, 0.25);
+    }
+
+    #run-btn:hover {
+      filter: brightness(1.1);
+    }
+
+    #clear-btn {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--panel-light);
+    }
+
+    #clear-btn:hover {
+      background: var(--panel-light);
+    }
+
+    .editor-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--panel-light);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--panel-light);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .panel-body {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+    }
+
+    #editor {
+      position: absolute;
+      inset: 0;
+    }
+
+    #terminal {
+      position: absolute;
+      inset: 0;
+      background: #0b0f19;
+      color: #e2e8f0;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 14px;
+      line-height: 1.6;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .terminal-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    #terminal-input {
+      background: #0b0f19;
+      color: #e2e8f0;
+      border: none;
+      border-top: 1px solid var(--panel-light);
+      padding: 14px 16px 14px 32px;
+      font-family: var(--font-mono);
+      font-size: 14px;
+      outline: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2322c55e' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 2A2.5 2.5 0 0 1 7 4.5v7A2.5 2.5 0 0 1 4.5 14h-2A2.5 2.5 0 0 1 0 11.5v-7A2.5 2.5 0 0 1 2.5 2h2zm7 0A2.5 2.5 0 0 1 14 4.5v7A2.5 2.5 0 0 1 11.5 14h-2A2.5 2.5 0 0 1 7 11.5v-7A2.5 2.5 0 0 1 9.5 2h2z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: 12px center;
+    }
+
+    #terminal-input::placeholder {
+      color: #64748b;
+    }
+
+    #terminal-input:disabled {
+      background-color: #0b0f19;
+      color: #475569;
+      cursor: not-allowed;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .status-dot.connected {
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    @media (max-width: 900px) {
+      .editor-container {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+      }
+
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="brand-icon">CL</div>
+        <div>
+          <h1>CodeLive</h1>
+          <span>Online Code Runner</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <select id="language-select">
+          <option value="python">Python</option>
+          <option value="javascript">JavaScript</option>
+          <option value="go">Go</option>
+        </select>
+        <button id="run-btn">Run Code</button>
+        <button id="clear-btn">Clear Terminal</button>
+      </div>
+    </header>
+
+    <div class="editor-container">
+      <div class="panel">
+        <div class="panel-header">
+          <span>Editor</span>
+          <span id="editor-lang">python</span>
+        </div>
+        <div class="panel-body">
+          <div id="editor"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span>Terminal</span>
+          <div class="status">
+            <div id="status-dot" class="status-dot"></div>
+            <span id="status-text">Idle</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="terminal-wrapper">
+            <div id="terminal"></div>
+            <input id="terminal-input" type="text" placeholder="Type command and press Enter..." autocomplete="off" disabled />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Monaco loader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.40.0/min/vs/loader.min.js"></script>
+
+  <!-- App logic -->
+  <script>
+    let editor;
+    let socket = null;
+    let currentJobId = null;
+
+    const languageDefaults = {
+      python: 'print("Hello, World!")',
+      javascript: 'console.log("Hello, World!");',
+      go: 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("Hello, World!")\n}'
+    };
+
+    // Monaco init
+    require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.40.0/min/vs' } });
+    require(['vs/editor/editor.main'], function () {
+      editor = monaco.editor.create(document.getElementById('editor'), {
+        value: languageDefaults.python,
+        language: 'python',
+        theme: 'vs-dark',
+        automaticLayout: true
+      });
+
+      document.getElementById('language-select').addEventListener('change', (e) => {
+        const lang = e.target.value;
+        monaco.editor.setModelLanguage(editor.getModel(), lang);
+        editor.setValue(languageDefaults[lang] || '// Write your code here');
+        document.getElementById('editor-lang').textContent = lang;
+      });
+    });
+
+    // Run code
+    document.getElementById('run-btn').addEventListener('click', async () => {
+      const code = editor.getValue();
+      const language = document.getElementById('language-select').value;
+      clearTerminal();
+
+      try {
+        const res = await fetch('/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, language }),
+        });
+
+        const data = await res.json();
+        currentJobId = data.job_id;
+        connectWebSocket(currentJobId);
+      } catch (err) {
+        appendToTerminal(`Error: ${err.message}`);
+      }
+    });
+
+    document.getElementById('clear-btn').addEventListener('click', clearTerminal);
+
+    function clearTerminal() {
+      const terminal = document.getElementById('terminal');
+      terminal.textContent = '';
+    }
+
+    function setStatus(state, text) {
+      const dot = document.getElementById('status-dot');
+      const label = document.getElementById('status-text');
+      if (state === 'connected') {
+        dot.classList.add('connected');
+      } else {
+        dot.classList.remove('connected');
+      }
+      label.textContent = text;
+    }
+
+    function connectWebSocket(jobId) {
+      if (socket) socket.close();
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/${jobId}`;
+      socket = new WebSocket(wsUrl);
+      const input = document.getElementById('terminal-input');
+
+      setStatus('connecting', 'Connecting...');
+
+      socket.onopen = () => {
+        appendToTerminal(`Connected to session: ${jobId}\n`);
+        input.disabled = false;
+        input.focus();
+        setStatus('connected', 'Live');
+      };
+
+      socket.onmessage = (event) => {
+        appendToTerminal(event.data);
+      };
+
+      socket.onerror = (e) => {
+        console.error('WebSocket error:', e);
+        appendToTerminal('\nWebSocket error occurred.');
+        setStatus('error', 'Error');
+      };
+
+      socket.onclose = (e) => {
+        console.warn('WebSocket closed:', e.reason || e);
+        input.disabled = true;
+        appendToTerminal(`\nSession ended: ${e.reason || 'No reason given.'}`);
+        setStatus('idle', 'Idle');
+      };
+    }
+
+    function appendToTerminal(text) {
+      const terminal = document.getElementById('terminal');
+      terminal.textContent += text;
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    document.getElementById('terminal-input').addEventListener('keydown', (e) => {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const input = e.target;
+        const line = input.value;
+        socket.send(line + '\n');
+        appendToTerminal(line + '\n');
+        input.value = '';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -5,7 +5,15 @@
 
 ## What This Chart Does
 
-Deploys a self-contained Splunk lab stack for log-analytics experimentation. [Splunk](https://www.splunk.com) is a data platform for searching, monitoring, and analyzing machine-generated big data. This chart includes Splunk Enterprise, a target app that emits logs/metrics, a load generator to create traffic spikes, a Fluent Bit DaemonSet to forward logs to Splunk's HTTP Event Collector (HEC), and an optional legacy Splunk forwarder. Useful for learning Splunk SPL, dashboards, and alerting without external dependencies.
+Deploys a self-contained Splunk lab stack for log-analytics experimentation. Components include:
+
+- **Splunk Enterprise** (single instance with PVC),
+- a **target app** that emits logs/metrics,
+- a **load generator** to create traffic spikes,
+- **Fluent Bit** DaemonSet to forward logs to Splunk HEC,
+- and an optional legacy Splunk forwarder.
+
+Useful for learning Splunk SPL, dashboards, and alerting without external dependencies.
 
 ## Directory Structure
 
@@ -71,6 +79,12 @@ Install or upgrade in a cluster:
 
 ```bash
 helm upgrade --install splunk-lab . -f values.yaml -n <NAMESPACE> --create-namespace
+```
+
+For wrapper charts that ship vendored `.tgz` dependencies, unpack them first if needed:
+
+```bash
+helm dependency update
 ```
 
 ## Notes

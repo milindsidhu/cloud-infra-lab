@@ -61,6 +61,12 @@ Install or upgrade in a cluster:
 helm upgrade --install namespace-rbac . -f values.yaml -n <NAMESPACE> --create-namespace
 ```
 
+For wrapper charts that ship vendored `.tgz` dependencies, unpack them first if needed:
+
+```bash
+helm dependency update
+```
+
 ## Notes
 
 - Replace placeholder values such as `<DOMAIN>`, `<CLOUDFLARE_TUNNEL_ID>`, `<NAMESPACE>`, etc., with real values before deploying.

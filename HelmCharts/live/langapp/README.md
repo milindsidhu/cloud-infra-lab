@@ -5,7 +5,12 @@
 
 ## What This Chart Does
 
-Deploys the **langApp** interactive code-execution service. The FastAPI backend exposes a browser UI and REST/WebSocket endpoints. Users can submit code in Python, Go, or Node.js, which the service runs inside isolated Kubernetes Jobs per request. The chart also deploys a CronJob that cleans up finished Jobs and orphaned ConfigMaps, an Ingress with optional TLS/cert-manager integration, optional external-dns annotations for Cloudflare-tunnel exposure, and a post-install Job that waits for the TLS Secret before the Ingress is created.
+Deploys the **langApp** interactive code-execution service. The FastAPI backend exposes a browser UI and REST/WebSocket endpoints. Users can paste code (Python, Go, Node.js), which the service runs inside isolated Kubernetes Jobs per request. The chart also deploys:
+
+- a CronJob that cleans up finished/failed Jobs and orphaned ConfigMaps,
+- an Ingress with TLS managed by cert-manager,
+- optional external-dns annotations for Cloudflare-tunnel exposure,
+- and a post-install Job that waits for the TLS Secret before the Ingress is created.
 
 ## Directory Structure
 
@@ -51,6 +56,12 @@ Install or upgrade in a cluster:
 
 ```bash
 helm upgrade --install lang-app . -f values.yaml -n <NAMESPACE> --create-namespace
+```
+
+For wrapper charts that ship vendored `.tgz` dependencies, unpack them first if needed:
+
+```bash
+helm dependency update
 ```
 
 ## Notes

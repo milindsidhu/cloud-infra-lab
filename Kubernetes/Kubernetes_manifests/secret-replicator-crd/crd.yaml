@@ -1,0 +1,37 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: secretreplicators.kopf.dev
+spec:
+  group: kopf.dev
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - sourceNamespace
+                - sourceSecretName
+                - targetSecretName
+              properties:
+                sourceNamespace:
+                  type: string
+                  description: Namespace containing the source secret.
+                sourceSecretName:
+                  type: string
+                  description: Name of the source secret.
+                targetSecretName:
+                  type: string
+                  description: Name to use for the replicated secret in the CR's namespace.
+  scope: Namespaced
+  names:
+    plural: secretreplicators
+    singular: secretreplicator
+    kind: SecretReplicator
+    shortNames:
+      - sr

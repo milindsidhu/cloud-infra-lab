@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Wrapper chart for [MetalLB](https://metallb.universe.tf), a load-balancer implementation for bare-metal Kubernetes clusters. MetalLB exposes Kubernetes `LoadBalancer` services on-premises by advertising virtual IPs via L2 or BGP. This chart configures `IPAddressPool` and `L2Advertisement` resources.
+Wrapper chart for [MetalLB](https://metallb.universe.tf). Exposes Kubernetes `LoadBalancer` services on bare-metal or VM clusters by advertising virtual IPs via L2. Configures `IPAddressPool` and `L2Advertisement` resources.
 
 ## Directory Structure
 

@@ -146,7 +146,7 @@ source:
             data:
               config.yaml: |
                 # Name of the tunnel you want to run
-                tunnel: edf03371-7be3-4673-aeae-4baf7c76fd57
+                tunnel: <CLOUDFLARE_TUNNEL_ID>
                 credentials-file: /etc/cloudflared/creds/credentials.json
                 # originRequest: # Top-level configuration
                 #   connectTimeout: 30s
@@ -206,7 +206,7 @@ metadata:
   annotations:
     # some/other/annotationKey: value
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-    external-dns.alpha.kubernetes.io/hostname: <subdomain><domain>
-    external-dns.alpha.kubernetes.io/target: <tunnel-id>.cfargotunnel.com
+    external-dns.alpha.kubernetes.io/hostname: <SUBDOMAIN>.<DOMAIN>
+    external-dns.alpha.kubernetes.io/target: <CLOUDFLARE_TUNNEL_ID>.cfargotunnel.com
 spec:
   ingressClassName: nginx # use this to route to internal host, else will return 502 Bad Gateway

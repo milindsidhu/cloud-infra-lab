@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Centralized namespace and RBAC governance chart. It creates regulated namespaces, application namespaces, dedicated ServiceAccounts, namespaced Roles/RoleBindings, and narrowly-scoped ClusterRoles/ClusterRoleBindings for CRD access. It also creates a central pull-secret namespace (`registry-secrets`) with a docker-registry Secret, and runs a PostSync Job that annotates the Secret so the mittwald replicator fans it out to all managed namespaces.
+Centralized namespace and RBAC management chart. Creates regulated and application namespaces, dedicated ServiceAccounts, namespaced Roles/RoleBindings, narrowly-scoped ClusterRoles/ClusterRoleBindings for CRD access, and a central pull-secret namespace (`registry-secrets`). A PostSync Job annotates the central docker-registry Secret so the mittwald replicator fans it out to all managed namespaces.
 
 ## Directory Structure
 
@@ -29,10 +29,10 @@ Centralized namespace and RBAC governance chart. It creates regulated namespaces
 
 ## Templates
 
-- `templates/central-namespace.yaml` — Creates the central `registry-secrets` namespace
-- `templates/patch-job.yaml` — PostSync Job that annotates the central Secret for mittwald-replicator fan-out
-- `templates/permissions.yaml` — Creates namespaces, ServiceAccounts, Roles, RoleBindings, ClusterRoles, and ClusterRoleBindings based on `values.yaml` categories
-- `templates/secret.yaml` — Creates the central docker-registry Secret in `registry-secrets`
+- `templates/central-namespace.yaml` — Namespace `central-namespace`
+- `templates/patch-job.yaml` — Job `sa-secret-patcher` (image: `{{ .Values.createPatchJob.image }}`)
+- `templates/permissions.yaml` — Namespace `sa-`
+- `templates/secret.yaml` — Secret `secret`
 
 ## Usage
 
@@ -46,6 +46,12 @@ Install or upgrade in a cluster:
 
 ```bash
 helm upgrade --install namespace-controller . -f values.yaml -n <NAMESPACE> --create-namespace
+```
+
+For wrapper charts that ship vendored `.tgz` dependencies, unpack them first if needed:
+
+```bash
+helm dependency update
 ```
 
 ## Notes

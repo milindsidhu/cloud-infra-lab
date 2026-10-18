@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Original [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) client chart. Deploys `cloudflared` with tunnel credentials and ingress rules so external traffic can reach private in-cluster services (e.g., Kubernetes API, SSH bastion) via Cloudflare's network.
+Original Cloudflare Tunnel client chart. Deploys `cloudflared` with tunnel credentials and ingress rules so external traffic can reach private in-cluster services (e.g., Kubernetes API, SSH bastion) via Cloudflare's network.
 
 ## Directory Structure
 
@@ -43,6 +43,12 @@ Install or upgrade in a cluster:
 
 ```bash
 helm upgrade --install cloudflared . -f values.yaml -n <NAMESPACE> --create-namespace
+```
+
+For wrapper charts that ship vendored `.tgz` dependencies, unpack them first if needed:
+
+```bash
+helm dependency update
 ```
 
 ## Notes

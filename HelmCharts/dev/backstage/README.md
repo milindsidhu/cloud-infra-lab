@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Deploys a [Backstage](https://backstage.io) developer portal backed by PostgreSQL. Backstage is an open platform for building developer portals. It provides a centralized software catalog, technical documentation, and a plugin ecosystem. This chart creates the `backstage` namespace, deploys a PostgreSQL database, and runs the Backstage UI/API container with the required Secrets and Services.
+Deploys a [Backstage](https://backstage.io) developer portal backed by PostgreSQL. Backstage provides a centralized software catalog, tech-docs, and a plugin ecosystem. This chart creates the `backstage` namespace, deploys a PostgreSQL instance, and runs the Backstage UI/API container.
 
 ## Directory Structure
 
@@ -56,6 +56,12 @@ Install or upgrade in a cluster:
 
 ```bash
 helm upgrade --install backstage-helm . -f values.yaml -n <NAMESPACE> --create-namespace
+```
+
+For wrapper charts that ship vendored `.tgz` dependencies, unpack them first if needed:
+
+```bash
+helm dependency update
 ```
 
 ## Notes

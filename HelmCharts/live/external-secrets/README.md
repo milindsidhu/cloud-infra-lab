@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Wrapper chart for the [External Secrets Operator (ESO)](https://external-secrets.io). ESO integrates Kubernetes with external secret-management systems such as AWS Secrets Manager, HashiCorp Vault, and Google Secret Manager. This chart deploys the ESO controller and uses `ClusterSecretStore`/`ExternalSecret` resources to inject secrets into the cluster.
+Wrapper chart for the [External Secrets Operator (ESO)](https://external-secrets.io). Synchronizes secrets from external secret-management systems (AWS Secrets Manager, Vault, etc.) into Kubernetes `Secret` objects using `ClusterSecretStore` and `ExternalSecret` resources.
 
 ## Directory Structure
 

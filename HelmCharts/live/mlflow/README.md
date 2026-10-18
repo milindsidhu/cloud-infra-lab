@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Deploys an [MLflow](https://mlflow.org) tracking server for machine-learning experiment tracking, model registry, and artifact management. MLflow is an open-source platform for managing the end-to-end machine learning lifecycle.
+Deploys an [MLflow](https://mlflow.org) tracking server for machine-learning experiment tracking, model registry, and artifact management.
 
 ## Directory Structure
 

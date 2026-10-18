@@ -121,4 +121,4 @@ appNamespaces:
 # ──────────────────────────────────────────────────────────────────
 createPatchJob:
   enabled: true
-  image: bitnami/kubectl:latest
+  image: bitnami/kubectl:1.31.0

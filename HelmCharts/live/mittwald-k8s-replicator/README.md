@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Wrapper chart for [mittwald/kubernetes-replicator](https://github.com/mittwald/kubernetes-replicator). The replicator copies Secrets and ConfigMaps from a source namespace to other namespaces based on annotations, which is useful for sharing TLS certificates, registry pull secrets, or common configuration across teams.
+Wrapper chart for [mittwald/kubernetes-replicator](https://github.com/mittwald/kubernetes-replicator). Replicates Secrets and ConfigMaps from a source namespace to other namespaces based on annotations.
 
 ## Directory Structure
 

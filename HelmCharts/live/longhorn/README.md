@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Wrapper chart for [Longhorn](https://longhorn.io), a cloud-native distributed block storage system for Kubernetes. Longhorn provides replicated, software-defined persistent volumes with snapshots, backups, and a management UI for stateful workloads running on bare-metal or VM-based clusters.
+Wrapper chart for [Longhorn](https://longhorn.io) distributed block storage. Provides replicated, software-defined persistent volumes for stateful workloads running on bare-metal or VM-based Kubernetes clusters.
 
 ## Directory Structure
 

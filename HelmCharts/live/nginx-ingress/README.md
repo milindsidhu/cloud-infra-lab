@@ -5,7 +5,7 @@
 
 ## What This Chart Does
 
-Wrapper chart for the [NGINX Ingress Controller](https://kubernetes.github.io/ingress-nginx/). The ingress controller provides HTTP/HTTPS routing, TLS termination, load balancing, and integration with cert-manager and external-dns for public-facing services.
+Wrapper chart for the [NGINX Ingress Controller](https://kubernetes.github.io/ingress-nginx/). Provides HTTP/HTTPS ingress routing, TLS termination, and integration with cert-manager and external-dns.
 
 ## Directory Structure
 
