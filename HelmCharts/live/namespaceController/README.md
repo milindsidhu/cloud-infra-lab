@@ -33,10 +33,10 @@ The Secret itself can be created by the chart (set `centralSecretNamespace.creat
 
 ## Templates
 
-- `templates/central-namespace.yaml` — Creates the central `registry-secrets` namespace
-- `templates/patch-job.yaml` — PostSync Job that annotates the central Secret for mittwald-replicator fan-out
-- `templates/permissions.yaml` — Creates namespaces, ServiceAccounts, Roles, RoleBindings, ClusterRoles, and ClusterRoleBindings based on `values.yaml` categories
-- `templates/secret.yaml` — Creates the central docker-registry Secret in `registry-secrets`
+- `templates/central-namespace.yaml` — Namespace `central-namespace`
+- `templates/patch-job.yaml` — Job `sa-secret-patcher` (image: `{{ .Values.createPatchJob.image }}`)
+- `templates/permissions.yaml` — Namespace `sa-`
+- `templates/secret.yaml` — Secret `secret`
 
 ## Usage
 
@@ -50,6 +50,12 @@ Install or upgrade in a cluster:
 
 ```bash
 helm upgrade --install namespace-controller . -f values.yaml -n <NAMESPACE> --create-namespace
+```
+
+For wrapper charts that ship vendored `.tgz` dependencies, unpack them first if needed:
+
+```bash
+helm dependency update
 ```
 
 ## Notes
