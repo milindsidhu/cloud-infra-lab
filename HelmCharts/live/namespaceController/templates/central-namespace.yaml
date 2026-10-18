@@ -1,0 +1,17 @@
+{{/*
+  Central namespace hosting the shared image-pull secret. Created
+  before every managed namespace (sync-wave -2) so the secret and
+  the mittwald replicator have somewhere to fan out from.
+*/}}
+{{- if .Values.createPatchJob.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.centralSecretNamespace.name }}
+  labels:
+    app.kubernetes.io/managed-by: namespace-controller
+    secrets.io/managed: "true"
+    policy-scope: enforced
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+{{- end }}

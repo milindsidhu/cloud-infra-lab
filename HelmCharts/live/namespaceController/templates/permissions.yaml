@@ -10,7 +10,7 @@ kind: Namespace
 metadata:
   name: {{ . }}
   labels:
-    app.kubernetes.io/managed-by: nc
+    app.kubernetes.io/managed-by: namespace-controller
     secrets.io/managed: "true"
     policy-scope: enforced
 ---
@@ -26,7 +26,7 @@ kind: Namespace
 metadata:
   name: {{ $name }}
   labels:
-    app.kubernetes.io/managed-by: nc
+    app.kubernetes.io/managed-by: namespace-controller
     secrets.io/managed: "true"
     policy-scope: enforced
 ---
@@ -36,7 +36,7 @@ metadata:
   name: sa-{{ $name }}
   namespace: {{ $name }}
   labels:
-    app.kubernetes.io/managed-by: nc
+    app.kubernetes.io/managed-by: namespace-controller
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -60,4 +60,30 @@ roleRef:
   name: role-{{ $name }}
   apiGroup: rbac.authorization.k8s.io
 ---
+{{- if $cfg.clusterRoleRules }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cr-{{ $name }}
+  labels:
+    app.kubernetes.io/managed-by: namespace-controller
+rules:
+{{- toYaml $cfg.clusterRoleRules | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cr-{{ $name }}-binding
+  labels:
+    app.kubernetes.io/managed-by: namespace-controller
+subjects:
+  - kind: ServiceAccount
+    name: sa-{{ $name }}
+    namespace: {{ $name }}
+roleRef:
+  kind: ClusterRole
+  name: cr-{{ $name }}
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- end }}
 {{- end }}

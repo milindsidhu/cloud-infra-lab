@@ -4,7 +4,7 @@ environment:
   - prod
 
 cronjobImage:
-  repository: bitnami/kubectl:latest
+  repository: bitnami/kubectl:1.31.0
   pullPolicy: IfNotPresent
 
 # CronJob configuration for cleaning up finished jobs

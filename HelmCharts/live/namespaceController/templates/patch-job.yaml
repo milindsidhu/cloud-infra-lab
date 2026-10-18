@@ -1,24 +1,48 @@
+{{/*
+  sa-secret-patcher + Role + RoleBinding live in the central secret
+  namespace (sync-wave -1, same wave as the Secret in secret.yaml).
+  The PostSync Job then patches the secret's mittwald replicator
+  annotation with every managed namespace.
+*/}}
 {{- if .Values.createPatchJob.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-secret-patcher
+  namespace: {{ .Values.centralSecretNamespace.name }}
+  labels:
+    app.kubernetes.io/managed-by: namespace-controller
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: secret-patcher
-  namespace: default
+  namespace: {{ .Values.centralSecretNamespace.name }}
+  labels:
+    app.kubernetes.io/managed-by: namespace-controller
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "patch", "update", "list"]
+    verbs: ["get", "list", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: secret-patcher-binding
-  namespace: default
+  namespace: {{ .Values.centralSecretNamespace.name }}
+  labels:
+    app.kubernetes.io/managed-by: namespace-controller
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 subjects:
   - kind: ServiceAccount
-    name: default
-    namespace: default
+    name: sa-secret-patcher
+    namespace: {{ .Values.centralSecretNamespace.name }}
 roleRef:
   kind: Role
   name: secret-patcher
@@ -28,7 +52,9 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: patch-docker-secret-annotation
-  namespace: default
+  namespace: {{ .Values.centralSecretNamespace.name }}
+  labels:
+    app.kubernetes.io/managed-by: namespace-controller
   annotations:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
@@ -37,16 +63,39 @@ spec:
   template:
     spec:
       restartPolicy: Never
-      serviceAccountName: default
+      serviceAccountName: sa-secret-patcher
       containers:
         - name: patcher
-          image: bitnami/kubectl:latest
+          image: {{ .Values.createPatchJob.image }}
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
           command:
             - /bin/sh
             - -c
-            - >
-              kubectl patch secret my-registry-secret -n default
-              --type=merge
-              -p '{"metadata":{"annotations":{"replicator.v1.mittwald.de/replicate-to":"{{ join "," (concat .Values.regulatedNoSANamespaces (keys .Values.appNamespaces)) }}"}}}'
+            - |
+              set -e
+              SECRET="{{ .Values.centralSecretNamespace.secretName }}"
+              NS="{{ .Values.centralSecretNamespace.name }}"
+
+              # Wait for the shared secret to land (bounded to ~5 min).
+              # If it never appears, fail loudly — an unannotated
+              # secret silently breaks image-pull fan-out.
+              i=0
+              until kubectl get secret "$SECRET" -n "$NS"; do
+                i=$((i + 1))
+                if [ "$i" -ge 60 ]; then
+                  echo "[ERROR] Secret $NS/$SECRET not found after 5 minutes."
+                  exit 1
+                fi
+                sleep 5
+              done
+
+              kubectl patch secret "$SECRET" -n "$NS" --type=merge \
+                -p '{"metadata":{"annotations":{"replicator.v1.mittwald.de/replicate-to":"{{ join "," (concat .Values.regulatedNoSANamespaces (keys .Values.appNamespaces)) }}"}}}'
 ---
 {{- end }}
